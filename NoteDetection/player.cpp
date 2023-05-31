@@ -13,17 +13,20 @@
 
 
 #if defined( __WIN32__ ) || defined( _WIN32 )
-	#define __WINDOWS_DS__
+	// #define __WINDOWS_DS__
 	#include <dsound.h>
+	#include <windows.h>
+	#define sleep(t) Sleep(t*1000)
 	//#include <dsconf.h>
 	//#include <xaudio2.h>
 #elif (defined(__APPLE__) && defined(__MACH__))
-	#define __MACOSX_CORE__
+	// #define __MACOSX_CORE__
 #else
-	#define __LINUX_ALSA__
+	// #define __LINUX_ALSA__
+	#include "unistd.h"
+	#define Sleep(t) sleep(t/1000)
 #endif
 #include "RtAudio.h"
-
 
  // __MACOSX_CORE__,    /*!< Macintosh OS-X Core Audio API. */
  //
@@ -36,11 +39,38 @@
  // __WINDOWS_WASAPI__, /*!< The Microsoft WASAPI API. */
  // __WINDOWS_DS__,     /*!< The Microsoft DirectSound API. */
 
+std::function<void(double *)> playCBFunc = play;
 
 
-void setup();//use this to do any initialisation if you want.
+// maxiSample samplePlayback;
 
-void play(double *output);//run dac! Very very often. Too often in fact. er...
+// void setup()
+// {	
+// 	// std::string filename;
+// 	// bool badFile = false;
+
+// 	// const std::string defaultFile("/home/alexis/Bureau/Notable/notable/NoteDetection/snare.wav");
+	
+// 	// do 
+// 	// {
+// 	// 	std::cout << "Enter file to use (default to snare.wav): \t";
+// 	// 	std::cin >> filename;
+		
+// 	// 	badFile = !ReadFromFile(filename.length() > 1 ? filename : defaultFile);
+		
+// 	// 	if (badFile)
+// 	// 		std::cout << "File cannot be found or opened. Try another file." << std::endl;
+
+// 	// 	Sleep(1000);
+// 	// } while (badFile);
+// }
+
+void play(double *output) //run dac! Very very often. Too often in fact. er...
+{
+// 	output[0] = samplePlayback.playAtSpeed(0.68);
+    
+// //  output[1] = output[0];
+}
 
 int routing	(void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
 			 double streamTime, RtAudioStreamStatus status, void *userData ) {
@@ -55,7 +85,7 @@ int routing	(void *outputBuffer, void *inputBuffer, unsigned int nBufferFrames,
 	}
 	// Write interleaved audio data.
 	for (size_t i=0; i<nBufferFrames; i++ ) {
-		play(lastValues);			
+		playCBFunc(lastValues);			
 		for (size_t j=0; j<maxiSettings::channels; j++ ) {
 			*buffer++=lastValues[j];
 		}
@@ -68,20 +98,8 @@ void errorCallback( RtAudioErrorType /*type*/, const std::string &errorText )
   std::cerr << "\nRtAudio errorCallback: " << errorText << "\n\n";
 }
 
-//This is main()
-int main()
+void StartStream(std::function<void(double *)> playCBFn)
 {
-	setup();
-  // // Specify our own error callback function.
-  // RtAudio dac( RtAudio::UNSPECIFIED, &errorCallback );
-
-  // std::vector<unsigned int> deviceIds = dac.getDeviceIds();
-  // if ( deviceIds.size() < 1 ) {
-  //   std::cout << "\nNo audio devices found!\n";
-  //   exit( 1 );
-  // }	
-
-
 	RtAudio dac(RtAudio::UNSPECIFIED, &errorCallback);
 	if ( dac.getDeviceCount() < 1 ) {
 		std::cout << "\nNo audio devices found!\n";
@@ -89,15 +107,17 @@ int main()
 		std::cin.get( input );
 		exit( 0 );
 	}
-	
+
 	RtAudio::StreamParameters parameters;
 	parameters.deviceId = dac.getDefaultOutputDevice();
 	parameters.nChannels = maxiSettings::channels;
-	parameters.firstChannel = 0;
+	parameters.firstChannel = 2;
 	unsigned int sampleRate = maxiSettings::sampleRate;
 	unsigned int bufferFrames = maxiSettings::bufferSize; 
 	std::vector<double> data(maxiSettings::channels,0);
 	
+	if (playCBFn) playCBFunc = playCBFn;
+
 	dac.openStream( &parameters, NULL, RTAUDIO_FLOAT64,
 						sampleRate, &bufferFrames, &routing, (void *)&(data[0]));
 	
@@ -112,6 +132,26 @@ int main()
 		dac.stopStream();
 	}
 	if ( dac.isStreamOpen() ) dac.closeStream();
+}
+
+
+void ReadFromFile(maxiSample& samplePlayback)
+{
+	std::string filename;
+	bool badFile = false;
+
+	const std::string defaultFile("/home/alexis/Bureau/Notable/notable/NoteDetection/snare.wav");
 	
-	return 0;
+	do 
+	{
+		std::cout << "Enter file to use (default to snare.wav): \t";
+		std::cin >> filename;
+		
+		badFile = !samplePlayback.load(filename.length() > 1 ? filename : defaultFile);
+		
+		if (badFile)
+			std::cout << "File cannot be found or opened. Try another file." << std::endl;
+
+		Sleep(1000);
+	} while (badFile);
 }

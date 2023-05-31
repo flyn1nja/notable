@@ -1,11 +1,10 @@
-
 #include "maximilian.h"
 #include "maximilianRecording.h"
 #include "libs/maxim.h"
+#include "player.h"
 
 
-/*
-maxiSample beats; 
+maxiSample samplePlayback; 
 maxiFFT myFFT;
 maxiIFFT myInverseFFT;
 std::vector<float> mags = std::vector<float>(512);
@@ -28,10 +27,29 @@ maxiOsc ramp;
 // We declare our recorder object here, which will call it's
 // default constructor. 
 maxiRecorder recorder;
-*/
+
+
+
+// Functions Declaration----------------------------------
+
+bool ReadFromFile(const std::string&);
+
+
+//This is main()
+int main()
+{
+    setup();
+
+    // TODO -- Use this one when can read from stream ok
+    StartStream(play);
+
+    std::cout << "Bye." << std::endl;
+    return 0;
+}
+
+
 void setup() {
-/*    
-    beats.load("../../../beat2.wav");//load in your samples. Provide the full path to a wav file.
+    samplePlayback.load("../../../beat2.wav");//load in your samples. Provide the full path to a wav file.
     myFFT.setup(1024, 512, 1024);
     myInverseFFT.setup(1024, 512, 1024);
     shiftEnv.setup({0,50,0}, {10000,10000}, {1,1}, true);
@@ -50,16 +68,27 @@ void setup() {
 
     // This must be called to start the asynchronous thread to
     // manage the recorder's internal memory
-    recorder.startRecording();*/
+    recorder.startRecording();
 }
 
 void play(double *output) {
-/*    
-    
-    float myOut=beats.play();
+
+    // Fill our output buffer
+    output[0]=out;
+    output[1]=out;
+
+    // After we have filled our output array, send the array
+    // and the size of the array (in this case the amount of
+    // channels, but in ofx or juce you might need to do 
+    // something like channels*bufferSize).
+    recorder.passData(output, maxiSettings::channels);
+
+    float myOut=samplePlayback.play();
+
+    //------------------------------------------------------
     
     if (myFFT.process(myOut)) {
-        cout << "SC: " << myFFT.spectralCentroid() << endl;
+        std::cout << "SC: " << myFFT.spectralCentroid() << endl;
         
         //shift some bins and phases around
         mags = myFFT.getMagnitudes();
@@ -82,22 +111,11 @@ void play(double *output) {
     output[0]=myOut;//simple as that!
     output[1]=output[0];
 
-    //------------------------------------------------------
+    // std::cout << output[0] ;
 
         
-    // A pulse wave!!! Yay
-    out = osc.pulse(90, ramp.phasor(.2));
-    
-    // Fill our output buffer
-    output[0]=out;
-    output[1]=out;
-
-    // After we have filled our output array, send the array
-    // and the size of the array (in this case the amount of
-    // channels, but in ofx or juce you might need to do 
-    // something like channels*bufferSize).
-    recorder.passData(output, maxiSettings::channels);*/
-    
+    // // A pulse wave!!! Yay
+    // out = osc.pulse(90, ramp.phasor(.2));
 }
 
 // We don't need to worry about telling the recorder to stop;

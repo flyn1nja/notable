@@ -740,7 +740,7 @@ std::string maxiSample::getSummary()
 double maxiSample::play() {
     output = F64_ARRAY_AT(amplitudes,(long)position);
     position++;
-		if ((long) position >= F64_ARRAY_SIZE(amplitudes)) {
+		if ((long) position >= static_cast<long>(F64_ARRAY_SIZE(amplitudes))) {
 			position = 0;
 		}
     return output;
@@ -840,12 +840,12 @@ double maxiSample::playAtSpeedBetweenPointsFromPos(double frequency, double star
 		pos += ((end-start)/((maxiSettings::sampleRate)/(frequency*chandiv)));
 		remainder = pos - floor(pos);
 		long posl = floor(pos);
-		if (posl+1<amplen) {
+		if (static_cast<size_t>(posl+1)<amplen) {
 			a=posl+1;
 		}	else {
 			a=posl-1;
 		}
-		if (posl+2<amplen) {
+		if (static_cast<size_t>(posl+2)<amplen) {
 			b=posl+2;
 		}
 		else {
@@ -980,7 +980,7 @@ double maxiSample::playUntil(double end) {
 
 //This plays back at the correct speed. Only plays once. To retrigger, you have to manually reset the position
 double maxiSample::playOnce() {
-	if ((long) position<F64_ARRAY_SIZE(amplitudes))
+	if ((long) position<static_cast<long>(F64_ARRAY_SIZE(amplitudes)))
 		output = F64_ARRAY_AT(amplitudes,(long)position);
 	else {
 		output=0;
@@ -993,7 +993,7 @@ double maxiSample::playOnce() {
 // //Same as above but takes a speed value specified as a ratio, with 1.0 as original speed
 double maxiSample::playOnceAtSpeed(double speed) {
 	double remainder = position - (long) position;
-	if ((long) position+1<F64_ARRAY_SIZE(amplitudes))
+	if ((long) position+1<static_cast<long>(F64_ARRAY_SIZE(amplitudes)))
 		output = ((1-remainder) * F64_ARRAY_AT(amplitudes,(long) position) + remainder * 
 		F64_ARRAY_AT(amplitudes,1+(long) position));//linear interpolation
 	else
@@ -1059,7 +1059,7 @@ double maxiSample::playUntilAtSpeed(double end, double speed) {
 
 double maxiSample::playAtSpeed(double speed) {
 	double remainder = position - (long) position;
-	if ((long) position<F64_ARRAY_SIZE(amplitudes)) {
+	if ((long) position<static_cast<long>(F64_ARRAY_SIZE(amplitudes))) {
 		output = ((1-remainder) * F64_ARRAY_AT(amplitudes,1+ (long) position) + remainder * 
 		F64_ARRAY_AT(amplitudes,2+(long) position));//linear interpolation
 	}
@@ -1068,7 +1068,7 @@ double maxiSample::playAtSpeed(double speed) {
 	}
 
 	position=position+((speed*chandiv)/(maxiSettings::sampleRate/mySampleRate));
-	if ((long) position >= F64_ARRAY_SIZE(amplitudes)) {
+	if ((long) position >= static_cast<long>((F64_ARRAY_SIZE(amplitudes)))) {
 		position -= F64_ARRAY_SIZE(amplitudes);
 	}
 	return output;
@@ -1125,13 +1125,13 @@ double maxiSample::playAtSpeed(double speed) {
 
 void maxiSample::normalise(double maxLevel) {
 	double maxValue = 0;
-	for(int i=0; i < F64_ARRAY_SIZE(amplitudes); i++) {
+	for(int i=0; i < static_cast<int>(F64_ARRAY_SIZE(amplitudes)); i++) {
 		if (abs(F64_ARRAY_AT(amplitudes,i)) > maxValue) {
 			maxValue = abs(F64_ARRAY_AT(amplitudes,i));
 		}
 	}
 	float scale = maxLevel / maxValue;
-	for(int i=0; i < F64_ARRAY_SIZE(amplitudes); i++) {
+	for(int i=0; i < static_cast<int>(F64_ARRAY_SIZE(amplitudes)); i++) {
 		F64_ARRAY_AT(amplitudes,i) = round(scale * F64_ARRAY_AT(amplitudes,i));
 	}
 }
@@ -1169,7 +1169,7 @@ void maxiSample::autoTrim(float alpha, float threshold, bool trimStart, bool tri
 				DECLARE_F64_ARRAY(newAmps)
 				F64_ARRAY_SETFROM(amplitudes, newAmps);
         // vector<double> newAmps(newLength);
-        for(int i=0; i < newLength; i++) {
+        for(size_t i=0; i < newLength; i++) {
             newAmps[i] = F64_ARRAY_AT(amplitudes,i+startMarker);
         }
 
@@ -1181,7 +1181,7 @@ void maxiSample::autoTrim(float alpha, float threshold, bool trimStart, bool tri
 				size_t fadeSize = 100;
 				if (F64_ARRAY_SIZE(amplitudes) > fadeSize)
 					fadeSize = F64_ARRAY_SIZE(amplitudes);
-        for(int i=0; i < fadeSize; i++) {
+        for(size_t i=0; i < fadeSize; i++) {
             double factor = i / (double) fadeSize;
             F64_ARRAY_AT(amplitudes,i) = round(F64_ARRAY_AT(amplitudes,i) * factor);
             F64_ARRAY_AT(amplitudes,F64_ARRAY_SIZE(amplitudes) - 1 - i) = round(F64_ARRAY_AT(amplitudes,F64_ARRAY_SIZE(amplitudes) - 1 - i) * factor);

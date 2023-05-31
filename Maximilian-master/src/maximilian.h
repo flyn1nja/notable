@@ -49,6 +49,7 @@
 #include <algorithm>
 #endif
 #include <numeric>
+#include <limits>
 
 // using namespace std;
 #ifndef PI
@@ -469,16 +470,16 @@ public:
     double reduce(size_t N, reduceFunction func, double initval) {
         double val=0;
         if (idx >= N) {
-            for(int i=idx-N; i < idx; i++) {
+            for(size_t i=idx-N; i < idx; i++) {
                 val = func(val, buf[i]);
             }
         }else{
             //first chunk
-            for(int i=F64_ARRAY_SIZE(buf)-(N-idx); i < buf.size(); i++) {
+            for(size_t i=F64_ARRAY_SIZE(buf)-(N-idx); i < buf.size(); i++) {
                 val = func(val, buf[i]);
             }
             //second chunk
-            for(int i=0; i < idx; i++) {
+            for(size_t i=0; i < idx; i++) {
                 val = func(val, buf[i]);
             }
         }
@@ -2668,18 +2669,20 @@ class CHEERP_EXPORT maxiDynamics {
         ) {
             double controlDB = maxiConvert::ampToDbs(inputAnalyser(control));
             double outDB = maxiConvert::ampToDbs(sig);
+            double envVal = 0;
+            double envRatio = 1;
             //companding above the high threshold
             if (ratioHigh > 0) {
                 if (kneeHigh > 0) {
                     double lowerKnee = thresholdHigh - (kneeHigh/2.0);
                     double higherKnee = thresholdHigh  +(kneeHigh/2.0);
                     //attack/release
-                    double envRatio = 1;
+                    envRatio = 1;
                     if (controlDB >= lowerKnee) {
-                        double envVal = arEnvHigh.play(1);
+                        envVal = arEnvHigh.play(1);
                         envRatio = envToRatio(envVal, ratioHigh);
                     }else {
-                        double envVal = arEnvHigh.play(-1);
+                        envVal = arEnvHigh.play(-1);
                     }
                     if ((controlDB >= lowerKnee) && (controlDB < higherKnee)) {
                         double kneeHighOut = ((higherKnee - thresholdHigh) / envRatio) + thresholdHigh;
@@ -2697,11 +2700,11 @@ class CHEERP_EXPORT maxiDynamics {
                 else {
                     //no knee
                     if (controlDB > thresholdHigh) {
-                        double envVal = arEnvHigh.play(1);
-                        double envRatio = envToRatio(envVal, ratioHigh);
+                        envVal = arEnvHigh.play(1);
+                        envRatio = envToRatio(envVal, ratioHigh);
                         outDB = ((controlDB - thresholdHigh) / envRatio) + thresholdHigh;  
                     }else {
-                        double envVal = arEnvHigh.play(-1);
+                        envVal = arEnvHigh.play(-1);
                     }
                 }
             }  
@@ -2711,12 +2714,12 @@ class CHEERP_EXPORT maxiDynamics {
                     double lowerKnee = thresholdLow - (kneeLow/2.0);
                     double higherKnee = thresholdLow  +(kneeLow/2.0);
                     //attack/release
-                    double envRatio = 1;
+                    envRatio = 1;
                     if (controlDB < lowerKnee) {
-                        double envVal = arEnvLow.play(1);
+                        envVal = arEnvLow.play(1);
                         envRatio = envToRatio(envVal, ratioLow);
                     }else {
-                        double envVal = arEnvLow.play(-1);
+                        envVal = arEnvLow.play(-1);
                     }
                     if ((controlDB >= lowerKnee) && (controlDB < higherKnee)) {
                         double kneeLowOut = thresholdLow - ((thresholdLow-lowerKnee) / ratioLow);
@@ -2734,11 +2737,11 @@ class CHEERP_EXPORT maxiDynamics {
                 else {
                     //no knee
                     if (controlDB < thresholdLow) {
-                        double envVal = arEnvLow.play(1);
-                        double envRatio = envToRatio(envVal, ratioLow);
+                        envVal = arEnvLow.play(1);
+                        envRatio = envToRatio(envVal, ratioLow);
                         outDB = thresholdLow - ((thresholdLow-controlDB) / ratioLow);
                     }else {
-                        double envVal = arEnvLow.play(-1);
+                        envVal = arEnvLow.play(-1);
                     }
                 }
             }  

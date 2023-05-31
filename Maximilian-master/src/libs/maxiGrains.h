@@ -13,6 +13,9 @@
 
 typedef unsigned long ulong;
 
+// Note: Had to replace all min max function with std:: counterpart
+
+
 //window functions from http://en.wikipedia.org/wiki/Window_function#High-_and_moderate-resolution_windows
 
 struct hannWinFunctor {
@@ -167,7 +170,7 @@ public:
 		sampleIdx = 0;
 		finished = 0;
 		freq = 1.0 / dur;
-		sampleEndPos = min(sample->getLength(), sampleStartPos + sampleDur);
+		sampleEndPos = std::min(sample->getLength(), sampleStartPos + sampleDur);
 		frequency = freq * speed;
 		if (frequency > 0) {
 			pos = sampleStartPos;
@@ -185,7 +188,7 @@ public:
 		double *sourceData = (double*)malloc(sampleDur * sizeof(double));
 		short* buffer = (short *)sample->temp.data();
 		//convert sample to double data
-		vDSP_vflt16D(buffer + sampleStartPos, 1, sourceData, 1, min(sampleDur, sample->length - sampleStartPos));
+		vDSP_vflt16D(buffer + sampleStartPos, 1, sourceData, 1, std::min(sampleDur, sample->length - sampleStartPos));
 		//todo: wraping code
 
 		grainSamples = (double*)malloc(sampleDur * sizeof(double));
@@ -347,7 +350,7 @@ public:
         if (looper > cycleLength + randomOffset) {
             looper -= (cycleLength + randomOffset);
 			speed = (speed > 0 ? 1 : -1);
-			maxiGrain<F> *g = new maxiGrain<F>(sample, max(min(1.0,(position / sample->getLength()) + posMod),0.0), grainLength, speed, &windowCache);
+			maxiGrain<F> *g = new maxiGrain<F>(sample, std::max(std::min(1.0,(position / sample->getLength()) + posMod),0.0), grainLength, speed, &windowCache);
 			grainPlayer->addGrain(g);
 			randomOffset = rand() % 10;
 		}
@@ -360,7 +363,7 @@ public:
 		looper++;
 		pos *= sample->getLength();
 		if (0 == floor(fmod(looper, grainLength * maxiSettings::sampleRate / overlaps))) {
-			maxiGrain<F> *g = new maxiGrain<F>(sample, max(min(1.0,(pos / sample->getLength())),0.0), grainLength, 1, &windowCache);
+			maxiGrain<F> *g = new maxiGrain<F>(sample, std::max(std::min(1.0,(pos / sample->getLength())),0.0), grainLength, 1, &windowCache);
 			grainPlayer->addGrain(g);
 		}
 		return grainPlayer->play();
@@ -420,7 +423,7 @@ public:
 			//			cout << cycleMod << endl;
 			//speed = (speed > 0 ? 1 : -1);
 			speed = speed - ((cycleMod / cycleLength) * 0.1);
-			maxiGrain<F> *g = new maxiGrain<F>(sample, max(min(1.0,(position / sample->getLength()) + posMod),0.0), grainLength, speed, &windowCache);
+			maxiGrain<F> *g = new maxiGrain<F>(sample, std::max(std::min(1.0,(position / sample->getLength()) + posMod),0.0), grainLength, speed, &windowCache);
 			grainPlayer->addGrain(g);
 			//			cout << grainPlayer->grains.size() << endl;
 			//			randomOffset = rand() % 10;
@@ -518,7 +521,7 @@ public:
             double cycleLength = grainLength * maxiSettings::sampleRate  / overlaps;
             if (looper > cycleLength + randomOffset) {
                 looper -= (cycleLength + randomOffset);
-                maxiGrain<F> *g = new maxiGrain<F>(sample, max(min(1.0,(position / sample->getLength()) + posMod),0.0), grainLength, pitchstretch, &windowCache);
+                maxiGrain<F> *g = new maxiGrain<F>(sample, std::max(std::min(1.0,(position / sample->getLength()) + posMod),0.0), grainLength, pitchstretch, &windowCache);
                 grainPlayer->addGrain(g);
                 randomOffset = rand() % 10;
             }
@@ -532,7 +535,7 @@ public:
         looper++;
         pos *= sample->getLength();
         if (0 == floor(fmod(looper, grainLength * maxiSettings::sampleRate / overlaps))) {
-            maxiGrain<F> *g = new maxiGrain<F>(sample, max(min(1.0,(pos / sample->getLength())),0.0), grainLength, pitchstretch, &windowCache);
+            maxiGrain<F> *g = new maxiGrain<F>(sample, std::max(std::min(1.0,(pos / sample->getLength())),0.0), grainLength, pitchstretch, &windowCache);
             grainPlayer->addGrain(g);
         }
         return grainPlayer->play();

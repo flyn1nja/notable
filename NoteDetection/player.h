@@ -9,3 +9,10 @@
 
 //#define MAXIMILIAN_PORTAUDIO
 #define MAXIMILIAN_RT_AUDIO
+
+#include <functional>
+
+void StartStream(std::function<void(double *)> playCBFn
+    = std::function<void(double *)>());
+void ReadFromFile(maxiSample& samplePlayback);
+void play(double *);

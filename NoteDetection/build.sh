@@ -1,6 +1,6 @@
 #!/bin/bash
-#run this from the example's folder
+#run this from this file's parent folder
 mkdir build
 cd build
-cmake .
+cmake ..
 make

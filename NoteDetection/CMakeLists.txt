@@ -13,25 +13,55 @@ add_executable(maximilian main.cpp player.cpp RtAudio.cpp ../Maximilian-master/s
 target_compile_options(maximilian PUBLIC -Wall)
 
 if (LINUX)
-  MESSAGE(STATUS "Linux build")
-  target_link_libraries(maximilian PUBLIC -lpthread)
-  target_link_libraries(maximilian PUBLIC -lasound)
-  add_definitions(-D__LINUX_ALSA__)
+MESSAGE(STATUS "Linux build")
+
+# __LINUX_ALSA__,     /*!< The Advanced Linux Sound Architecture API. */
+# __UNIX_JACK__,      /*!< The Jack Low-Latency Audio Server API. */
+# __LINUX_PULSE__,    /*!< The Linux PulseAudio API. */
+# __LINUX_OSS__,      /*!< The Linux Open Sound System API. */
+
+add_definitions(-D__LINUX_ALSA__) # Soundcards, self-installed audio, ...
+add_compile_definitions(__LINUX_ALSA__)
+target_link_libraries(maximilian PUBLIC -lpthread)
+target_link_libraries(maximilian PUBLIC -lasound)
+
+# add_definitions(-D__LINUX_PULSE__) # Default for Ubuntu, Mint, openSUSE, BSD, ...
+# target_link_libraries(maximilian PUBLIC -lpthread)
+# target_link_libraries(maximilian PUBLIC -lpulse-simple)
+# target_link_libraries(maximilian PUBLIC -lpulse)
+
 endif()
 
 if (OSX)
   MESSAGE(STATUS "OSX build")
+
+  # __MACOSX_CORE__,    /*!< Macintosh OS-X Core Audio API. */
+
+  add_definitions(-D__MACOSX_CORE__)
+  add_compile_definitions(__MACOSX_CORE__)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__MACOSX_CORE__")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__MACOSX_CORE__")
+
   target_link_libraries(maximilian PUBLIC -lpthread)
   target_link_libraries(maximilian PUBLIC -lasound)
-  add_definitions(-D__MACOSX_CORE__)
+
   #incomplete - need to add frameworks -framework CoreAudio -framework CoreFoundation
 endif()
 
 if(WIN32)
   MESSAGE(STATUS "Windows build")
+
+  # __WINDOWS_ASIO__,   /*!< The Steinberg Audio Stream I/O API. */
+  # __WINDOWS_WASAPI__, /*!< The Microsoft WASAPI API. */
+  # __WINDOWS_DS__,     /*!< The Microsoft DirectSound API. */
+
+  add_definitions(-D__WINDOWS_DS__)
+  add_compile_definitions(__WINDOWS_DS__)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__WINDOWS_DS__")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__WINDOWS_DS__")
+
   target_link_libraries(maximilian PUBLIC -lole32)
   target_link_libraries(maximilian PUBLIC -lwinmm)
   target_link_libraries(maximilian PUBLIC -ldsound)
-  add_definitions(-D__WINDOWS_DS__)
 endif(WIN32)
 
