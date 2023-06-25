@@ -1,1 +1,4 @@
 ./CMake/**
+./dj_fft/**
+./fftw-**/**
+.vscode/**

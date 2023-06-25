@@ -22,12 +22,6 @@ struct QConstTransKernel
     int params; // Params for the inverse transform
 };
 
-struct CQTKernel
-{
-    double freqKernel;
-
-};
-
 template <typename T>
 struct sparseMat {
     // using matValType = std::conditional_t<std::is_arithmetic<T>::value>;
@@ -42,10 +36,23 @@ struct sparseMat {
     // }
 };
 
+struct CQTKernel
+{
+    sparseMat<std::complex<double>> freqKernel;
 
+    int fftLen;
+    int fftHop;
+
+    int atomHop;
+    int atomNr;
+    double firstcenter;
+};
+
+
+const int COEFFS_SIZE = 7;
 // Computed from matlab:  butter(6, 0.5, 'low') 
-const double BUTTER_B_COEFFS[7] = { 0.029588, 0.177529, 0.443823, 0.59174, 0.443823, 0.177529, 0.29588 };
-const double BUTTER_A_COEFFS[7] = { 1.000000, -6.6613e-16, 7.7770e-1, -2.8192e-16, 1.1420e-1, -1.1472e-17, 1.7509e-3 };
+const double BUTTER_B_COEFFS[COEFFS_SIZE] = { 0.029588, 0.177529, 0.443823, 0.59174, 0.443823, 0.177529, 0.29588 };
+const double BUTTER_A_COEFFS[COEFFS_SIZE] = { 1.000000, -6.6613e-16, 7.7770e-1, -2.8192e-16, 1.1420e-1, -1.1472e-17, 1.7509e-3 };
 
 
 inline int nextpow2(int x) { return round(pow(2.0f, ceil(log2(x)))); }
@@ -68,7 +75,7 @@ inline T** transposeMat(T** mat, int lenx, int leny)
     T copyMat[lenx][leny];
     for (int i = 0; i < leny; ++i)
     for (int j = 0; j < lenx; ++j)
-        copyMat[j][i]= array[i][j];
+        copyMat[j][i]= mat[i][j];
     
     return copyMat;
 }
@@ -87,6 +94,18 @@ T meanOfAbs(std::vector<T> vect)
         sum += abs(vect[i]);
     
     return sum / vect.size();
+}
+
+template <class T>
+T meanOfAbs(std::vector<std::vector<T>> mat)
+{
+    T sum = {}; 
+    
+    for (int i = 0; i < mat.size(); ++i)
+    for (int j = 0; j < mat[i].size(); ++j)
+        sum += abs(mat[i][j]);
+    
+    return sum / (mat.size() * mat[0].size());
 }
 
 std::vector<double> modhann(double length) {
@@ -131,12 +150,7 @@ template <class T>
 std::vector<std::vector<T>> unsparse(const sparseMat<T>& sparseM)
 {
     // Creates the matrix with 0 as def. value
-    std::vector<std::vector<T>> matr();
-
-    // if (std::is_arithmetic<T>)
-    // {
-        // Creates the matrix with 0 as def. value
-        std::vector<std::vector<T>> matr = 
+    std::vector<std::vector<T>> matr = 
             std::vector<std::vector<T>>(sparseM.height,
             std::vector<T>(sparseM.width, static_cast<T>(0)));
 
@@ -160,7 +174,7 @@ void sparseAppend(sparseMat<T>& sparseM, std::vector<T> vec, float thresh=0.0005
             sparseM.values.push_back(std::tuple<T, int, int>(vec[j], sparseM.width-1, j));
         
     // }
-    return sparseMat;
+    // return sparseMat;
 }
 
 // Function to multiply matrix by its transposed form and returns diagonal elems
@@ -173,6 +187,8 @@ std::vector<T> diagOfMultiplyMatrixByTranspose(sparseMat<T>& spMat)
     std::vector<int> result;
     result.reserve(rows);
 
+    T sum = T{ };
+
     // Multiply matrix by its transposed form
     for (int i = 0; i != spMat.values.size(); ++i) {
         std::vector<std::tuple<T, int, int>> val1 = spMat.values[i];
@@ -181,8 +197,9 @@ std::vector<T> diagOfMultiplyMatrixByTranspose(sparseMat<T>& spMat)
             std::vector<std::tuple<T, int, int>> val2 = spMat.values[j];
 
             // if both columns are the same
-            if (std::get<2>(val1) == std::get<2>(val2)) {
-                sum += value1 * value2;  // Square each element
+            if (std::get<2>(val1) == std::get<2>(val2))
+            {
+                sum += std::get<2>(val1) * std::get<2>(val2);  // Square each element
                 break;
             }
         }
@@ -191,6 +208,39 @@ std::vector<T> diagOfMultiplyMatrixByTranspose(sparseMat<T>& spMat)
 
     return result;
 }
+
+std::vector<double> antialias(const std::vector<double>& x) {
+    // std::vector<double> y1 = forwardFilter(b, x);
+
+    const int sizex = x.size();
+
+    //* Maybe rendre static? Ou declarer a l'exterieur? *
+    std::vector<double> y1(sizex, 0.0);
+    std::vector<double> y2(sizex, 0.0);
+    
+    // Do forward filtering
+    for (int i = COEFFS_SIZE; i < sizex; ++i)
+    for (int j = 0; j < COEFFS_SIZE; ++j)
+        y1[i] += BUTTER_B_COEFFS[j] * x[i-j];
+
+    // Do backward filtering
+    for (int i = sizex-1; i >= COEFFS_SIZE; --i)
+    for (int j = COEFFS_SIZE-1; j >= 0; --j)
+        y2[i] += BUTTER_B_COEFFS[j] * y1[i-j];
+
+/*
+    // Apply normalization
+    double scale = 0.0;
+    for (int i = 0; i < a.size(); ++i) {
+        scale += a[i];
+    }
+    for (int i = 0; i < y.size(); ++i) {
+        y[i] /= scale;
+    }
+*/
+    return y2;
+}
+
 
 
 template <class T>
@@ -228,13 +278,13 @@ std::vector<std::vector<T>> getWK(sparseMat<T>& sparseM, const double q)
     std::vector<T> wKVect = diagOfMultiplyMatrixByTranspose(wk);
 
     // wK = wK(round(1/q)+1:(end-round(1/q)-2));
-    return std::vector<T>(wKVect.begin() + round(1/q)+1, wKVect.end() - (end-round(1/q)-2))
+    return std::vector<T>(wKVect.begin() + round(1/q)+1, wKVect.end() - (wKVect.end()-round(1/q)-2));
 }
 
 template <class T>
-void normalizeByWeight(sparseKernel<T>& spKernel)
+void normalizeByWeight(sparseMat<T>& spKernel, std::vector<std::vector<std::complex<double>>>& wk)
 {
-    double weight = sqrt( (fftHOP/FFTLen) / meanOfAbs(wk) );
+    double weight = sqrt( (spKernel.fftHop/spKernel.ffTLen) / meanOfAbs(wk) );
 
     for(std::tuple<T, int, int>& elem : spKernel.values)
         elem *= weight;
@@ -246,11 +296,10 @@ CQTKernel generateCQTkernel(const double fmax, const int bins, const double samp
                          const double thresh=0.0005, const bool oversampleTwo=false, const bool allowSevAtoms=true,
                          const bool perfRast=true)
 {
-
     // define
     double fmin = (fmax/2.0)*pow(2.0,(1.0/static_cast<double>(bins)));
     double Q = (1.0/(pow(2.0,(1.0/static_cast<double>(bins))-1)))*q;
-    double Nk_max = Q * smplRate / fmin; 
+    double Nk_max = Q * smplRate / fmin;
     Nk_max = 2 * round((Nk_max+1)/2.0) - 1; //modhann windows are always of odd length
 
     std::vector<std::complex<double>> specKernel; // TODO -- Revoir pour le type de datastructure
@@ -306,7 +355,7 @@ CQTKernel generateCQTkernel(const double fmax, const int bins, const double samp
         Nk = Q * smplRate / fk;
 
         std::vector<double> winFct = modhann(Q*sampleFreq/fk);
-        double n[winFct.size()] = { };
+        std::vector<double> n(winFct.size(), 0.0);
 
         for (int i = 0; i < winFct.size(); ++i)
             n[i] = (winFct.size()-1) / 2.0 + i;
@@ -327,20 +376,20 @@ CQTKernel generateCQTkernel(const double fmax, const int bins, const double samp
 
         double shift;
 
-        for (int i = 1; i < winNr; ++i)
+        for (int m = 1; m < winNr; ++m)
         {
-            shift = atomOffset + ((i-1) * atomHOP);
+            shift = atomOffset + ((m-1) * atomHOP);
             // tempKernel(1+shift:length(tempKernelBin)+shift) = tempKernelBin;
-            for (int j = shift; j < tempKernelBin.size() + shift - 1 /*TODO: revoir pour -1*/; i++)
-                tempKernel[j] = tempKernelBin[j];
+            for (int n = shift; n < tempKernelBin.size() + shift - 1 /*TODO: revoir pour -1*/; ++n)
+                tempKernel[n] = tempKernelBin[n];
 
             ++atomInd;
             specKernel = fft(conjugate(tempKernel, static_cast<int>(FFTLen))); // Do fft
 
-                for (int j = 0; j < specKernel.size(); ++j)
+                for (int ker = 0; ker < specKernel.size(); ++ker)
                 {
-                    if (abs(specKernel[j]) <= thresh)
-                        specKernel[j] = 0.0;
+                    if (abs(specKernel[ker]) <= thresh)
+                        specKernel[ker] = 0.0;
                 }
             
             // specKernel(abs(specKernel)<=thresh) = 0;
@@ -373,7 +422,7 @@ CQTKernel generateCQTkernel(const double fmax, const int bins, const double samp
     // weight = weight.*(fftHOP/FFTLen); 
     // weight = sqrt(weight); //sqrt because the same weight is applied in icqt again
 
-    normalizeByWeight(sparseKernel);
+    normalizeByWeight(sparseKernel, wk);
 
     // return
     // cqtKernel = struct('fKernel',sparseKernel,'fftLEN',FFTLen,'fftHOP',fftHOP,'fftOverlap',fftOLP,'perfRast',perfRast,...
@@ -441,32 +490,334 @@ CQTKernel generateCQTkernel(const double fmax, const int bins, const double samp
 // #endif
 // }
 
-void cqt(const double* signal, const int initSignalLen, double fmin, const double fmax,
+
+struct CQTResult
+{
+    // std::vector<std::vector<double>> spCQT;
+    sparseMat<std::complex<double>> spCQT;
+    std::vector<std::vector<std::complex<double>>> fKernel;
+    double fmin;
+    double fmax;
+    int octaveNr;
+    int bins;
+    // Add additional fields as needed
+};
+
+// TODO -> signal p-e `volatile` et p-e en copie (pour dernier for)?
+CQTResult cqt(std::vector<double>& signal, const int initSignalLen, double fmin, const double fmax,
          const int bins, const double smplRate, const double atomHopFactor=0.25,
          const double q=1.0, const double thresh=0.0005, const bool fromKernel=false,
          const bool oversampleTwo=false, const bool allowSevAtoms=true,
          const double coeffB=-1, const double coeffA=-1)
 {
-    const double OCTAVE_NR = ceil(log2(fmax/fmin));
+    const double OCTAVE_NR = ceil(log2(fmax/fmin)); // int?
     fmin = (fmax/(pow(2.0,OCTAVE_NR))) * pow(2.0, 1.0/static_cast<double>(bins));
 
-    double cqtKernel; // probablement pas un double 
+    CQTKernel cqtKernel;
 
-
-    // Design the lowpass filter
-    if ( coeffA > 0 && coeffB > 0)
-    {
-        int lpBorder = 6;
-        float cutoff = 0.5;
-
-        // A revoir (fonction butter non-utilisé, precalculé a la place)
-
-    }
+    const double q = 1.0;
+    const double atomHopFactor = 0.25;
+    const double thresh = 0.0005;
+    const bool allowSevAtoms = true;
+    const bool oversampTwo = false;
+    const bool perfRast = true;
 
     // Design the kernel for one octave
     if (!fromKernel)
-        cqtKernel = generateCQTkernel(/*...*/); //TODO
+        cqtKernel = generateCQTkernel(fmax, bins, sampleFreq,
+                         smplRate, atomHopFactor, q,
+                         thresh, oversampleTwo, allowSevAtoms,
+                         perfRast);
     
     // Calculate the CQT
+    const int maxBlock = cqtKernel.fftLen * std::pow(2, OCTAVE_NR - 1);
+
+    std::vector<double> paddedSignal(maxBlock + initSignalLen + maxBlock, 0.0);
+    std::copy(signal.begin(), signal.end(), paddedSignal.begin() + maxBlock);
+
+    const int OVRLP = cqtKernel.fftLen - cqtKernel.fftHop;
+    const double totBinsInOctaves = bins * OCTAVE_NR; // int?
+
+    int emptyHops = cqtKernel.firstcenter / cqtKernel.atomHop;
+    int fftBlockNr = std::ceil((paddedSignal.size() - cqtKernel.fftLen) / (cqtKernel.fftLen - OVRLP));
+    // Todo: rendre sparse
+    std::vector<std::vector<std::complex<double>>> spCQT(totBinsInOctaves, std::vector<std::complex<double>>(fftBlockNr * cqtKernel.atomNr, 0.0));
+   
+    int drops = 0;
+    std::pair<int,int> binVecBorders(0,0);
+    // std::vector<double> bufferedSignal(OVRLP,0.0);
+    std::vector<std::complex<double>> signalFft(cqtKernel.fftLen,0.0);
+    std::copy(signal.begin(), signal.end(), paddedSignal.begin() + maxBlock);
+    std::vector<std::vector<std::complex<double>>> signalOctTrans(cqtKernel.fftLen,std::complex<double>(0.0));
+
+    std::vector<int> tVec(cqtKernel.fftLen,0.0);
+
+    for (int i = 0; i < OCTAVE_NR; ++i)
+    {
+        binVecBorders.first = bins * (OCTAVE_NR - i);
+        binVecBorders.second = bins * (OCTAVE_NR - i+1)-1;
+        drops = emptyHops * pow(2, OCTAVE_NR-i-1) - emptyHops; // synchronize first coeffs of all octaves
+        
+        // ! À Revoir. Utilise la fonction buffer de matlab...
+        signalFft = fft(paddedSignal/* -from-  binVecBorders.first   -to-   binVecBorders.second*/);
+
+        //TODO : Matrix multiplication
+        std::vector<std::vector<std::complex<double>>> signalOct = cqtKernel.freqKernel*signalFft; //TODO : Matrix multiplication
+
+        //Reshape?
+
+        int k = 0;
+        int kInd = 0;
+        while (k < signalOct[0].size() * pow(2,i))
+        {
+            tVec[kInd] = k;
+            k += pow(2.0,i);
+            ++kInd;
+        }
+        
+        for (int b = binVecBorders.first; b < binVecBorders.second; ++b)
+        for (int t = 0; t < tVec.size(); ++t)
+            spCQT[b][tVec[t]] = signalOct[b][t]; // Todo: Revoir pour indexation du 2e
+            
+        
+         
+
+
+        tVec.clear();
+        // for (int b = 0; b < drops; ++b)
+        // {
+        //     for (int j = 0; j < m_p.atomsPerFrame; ++j)
+        //     {
+        //         int target = base + (b * (totalColumns / blocksThisOctave) +
+        //                     (j * ((totalColumns / blocksThisOctave) /
+        //                         m_p.atomsPerFrame)));
+        //         while (int(out[target].size()) <
+        //                 m_p.binsPerOctave * (octave + 1)) {
+        //             out[target].push_back(Complex());
+        //         }                    
+        //         for (int i = 0; i < m_p.binsPerOctave; ++i) {
+        //             out[target][m_p.binsPerOctave * octave + i] =
+        //                 block[j][m_p.binsPerOctave - i - 1];
+        //         }
+        //     }
+        // }
+        
+        
+        //
+        //
+        //
+
+/*
+        bool enough = true;
+        while (enough) {
+            // We could have quite different remaining sample counts in
+            // different octaves, because (apart from the predictable
+            // added counts for decimator output on each block) we also
+            // have variable additional latency per octave
+            enough = true;
+            for (int i = 0; i < m_octaves; ++i) {
+                int required = m_p.fftSize * pow(2, m_octaves - i - 1);
+                if ((int)m_buffers[i].size() < required) {
+                    enough = false;
+                }
+            }
+            if (!enough) break;
+            int base = out.size();
+            int totalColumns = pow(2, m_octaves - 1) * m_p.atomsPerFrame;
+            for (int i = 0; i < totalColumns; ++i) {
+                out.push_back(ComplexColumn());
+            }
+            for (int octave = 0; octave < m_octaves; ++octave) {
+                int blocksThisOctave = pow(2, (m_octaves - octave - 1));
+                for (int b = 0; b < blocksThisOctave; ++b) {
+                    ComplexBlock block = processOctaveBlock(octave);                
+                    for (int j = 0; j < m_p.atomsPerFrame; ++j) {
+                        int target = base +
+                                (b * (totalColumns / blocksThisOctave) +
+                                    (j * ((totalColumns / blocksThisOctave) /
+                                        m_p.atomsPerFrame)));
+                        while (int(out[target].size()) <
+                                m_p.binsPerOctave * (octave + 1)) {
+                            out[target].push_back(Complex());
+                        }                    
+                        for (int i = 0; i < m_p.binsPerOctave; ++i) {
+                            out[target][m_p.binsPerOctave * octave + i] =
+                                block[j][m_p.binsPerOctave - i - 1];
+                        }
+                    }
+                }
+            }
+        }
+*/
+
+        // Anti aliasing filter
+        if (i != OCTAVE_NR)
+        {
+            antialias(signal);
+
+            // Re-sample to interval of 2
+            for (int s = 0; s < signal.size(); s+=2)
+                signal[s/2] = signal[s];
+            
+        }
+
+    } 
+
+
+    // Create CQTResult object and fill in the values
+    CQTResult result;
+    // result.spCQT = spCQT;
+    result.spCQT = sparse(spCQT);
+    result.fKernel = cqtKernel;
+    result.fmin = fmin;
+    result.fmax = fmax;
+    result.octaveNr = OCTAVE_NR;
+    result.bins = bins;
+   
+    return result;
 
 }
+
+// #include <iostream>
+// #include <vector>
+// #include <cmath>
+
+CQTResult cqt2(const std::vector<double>& x, double fmin, double fmax, int bins, double fs,
+              double q = 1.0, double atomHopFactor = 0.25, double thresh = 0.0005,
+              int allowSevAtoms = 1, int oversampTwo = 0) {
+   
+    // Input checking
+    if (x.size() > 1 && x[0].size() > 1) {
+        throw std::runtime_error("cqt requires one-dimensional input!");
+    }
+    if (x.size() > 1) {
+        // Convert input signal to column vector
+        std::vector<double> x_col(x.size());
+        for (int i = 0; i < x.size(); i++) {
+            x_col[i] = x[i][0];
+        }
+        x = x_col;
+    }
+   
+    // Default parameter values
+    // Modify these as needed
+    double q = 1.0;
+    double atomHopFactor = 0.25;
+    double thresh = 0.0005;
+    int allowSevAtoms = 1;
+    int oversampTwo = 0;
+    int perfRast = 0;
+   
+    // Design lowpass filter
+    // Modify filter parameters as needed
+    int LPorder = 6;
+    double cutoff = 0.5;
+    std::vector<double> B(LPorder + 1), A(LPorder + 1);
+    butter(LPorder, cutoff, B, A);
+   
+    // Define octave number
+    int octaveNr = std::ceil(std::log2(fmax / fmin));
+    fmin = (fmax / std::pow(2, octaveNr)) * std::pow(2, 1.0 / bins); // Update fmin to actual value
+   
+    // Design kernel for one octave
+    // Generate the kernel using the genCQTkernel function (not shown here)
+    std::vector<std::vector<std::complex<double>>> cqtKernel = genCQTkernel(fmax, bins, fs,
+        "q", q, "atomHopFactor", atomHopFactor, "thresh", thresh,
+        "allowSevAtoms", allowSevAtoms, "perfRast", perfRast, "oversampTwo", oversampTwo);
+   
+    // Calculate CQT
+    int maxBlock = cqtKernel[0].size() * std::pow(2, octaveNr - 1);
+    int suffixZeros = maxBlock;
+    int prefixZeros = maxBlock;
+    std::vector<double> x_padded(prefixZeros + x.size() + suffixZeros, 0.0);
+    std::copy(x.begin(), x.end(), x_padded.begin() + prefixZeros);
+   
+    int OVRLP = cqtKernel[0].size() - cqtKernel[1].size();
+    int emptyHops = cqtKernel[2][0].real() / cqtKernel[5][0].real();
+    int fftBlockNr = std::ceil((x_padded.size() - cqtKernel[0].size()) / (cqtKernel[0].size() - OVRLP));
+   
+    std::vector<std::vector<double>> spCQT(bins, std::vector<double>(fftBlockNr * (x_padded.size() / cqtKernel[0].size()), 0.0));
+   
+    for (int i = 0; i < fftBlockNr; i++) {
+        int segmentOffset = (cqtKernel[0].size() - OVRLP) * i;
+       
+        std::vector<double> segment(x_padded.begin() + segmentOffset, x_padded.begin() + segmentOffset + cqtKernel[0].size());
+       
+        std::vector<double> segment_hann(segment.size(), 0.0);
+        for (int j = 0; j < segment.size(); j++) {
+            segment_hann[j] = segment[j] * (0.5 - 0.5 * std::cos(2.0 * M_PI * j / (segment.size() - 1)));
+        }
+       
+        std::vector<double> segment_filtered(segment.size(), 0.0);
+        filter(segment_hann, B, A, segment_filtered);
+       
+        std::vector<std::vector<double>> D(cqtKernel.size());
+        for (int j = 0; j < cqtKernel.size(); j++) {
+            D[j].resize(segment.size(), 0.0);
+        }
+       
+        for (int j = 0; j < segment.size(); j++) {
+            for (int k = 0; k < cqtKernel.size(); k++) {
+                D[k][j] = segment_filtered[j] * cqtKernel[k][j].real();
+            }
+        }
+       
+        std::vector<std::vector<std::complex<double>>> X(cqtKernel.size());
+        for (int j = 0; j < cqtKernel.size(); j++) {
+            X[j].resize(segment.size(), std::complex<double>(0.0, 0.0));
+        }
+       
+        fft(D, X);
+       
+        std::vector<std::vector<double>> Z(X.size());
+        for (int j = 0; j < X.size(); j++) {
+            Z[j].resize(X[j].size(), 0.0);
+        }
+       
+        for (int j = 0; j < X.size(); j++) {
+            for (int k = 0; k < X[j].size(); k++) {
+                Z[j][k] = std::pow(std::abs(X[j][k]), 2.0);
+            }
+        }
+       
+        for (int j = 0; j < bins; j++) {
+            int blockOffset = (cqtKernel[0].size() - cqtKernel[1].size()) * j;
+            std::vector<double> Z_bin(Z[0].begin() + blockOffset, Z[0].begin() + blockOffset + Z[1].size());
+            std::copy(Z_bin.begin(), Z_bin.end(), spCQT[j].begin() + i * Z_bin.size());
+        }
+    }
+   
+    // Create CQTResult object and fill in the values
+    CQTResult result;
+    result.spCQT = spCQT;
+    result.fKernel = cqtKernel;
+    result.fmin = fmin;
+    result.fmax = fmax;
+    result.octaveNr = octaveNr;
+    result.bins = bins;
+   
+    return result;
+}
+
+
+int main() {
+    // Example usage
+    std::vector<double> x = {1.0, 2.0, 3.0, 4.0, 5.0};
+    double fmin = 10.0;
+    double fmax = 100.0;
+    int bins = 10;
+    double fs = 44100.0;
+   
+    CQTResult result = cqt(x, fmin, fmax, bins, fs);
+   
+    // Print the spectrogram
+    for (int i = 0; i < result.spCQT.size(); i++) {
+        for (int j = 0; j < result.spCQT[i].size(); j++) {
+            std::cout << result.spCQT[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+   
+    return 0;
+}
+
