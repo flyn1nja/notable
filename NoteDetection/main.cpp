@@ -3,6 +3,14 @@
 #include "libs/maxim.h"
 #include "player.h"
 
+#include "QConstTrans.h"
+#include "instruments.h"
+
+#include <iostream>
+#include <fstream>
+#include <complex>
+#include <tuple>
+
 
 maxiSample samplePlayback; 
 maxiFFT myFFT;
@@ -13,6 +21,7 @@ std::vector<float> phases = std::vector<float>(512);
 std::vector<float> phases2 = std::vector<float>(512);
 maxiEnvGen shiftEnv;
 
+CQTResult cqtRes;
 
 // Here we define a double floating value that will contain our
 // frame of lovely maximilian generated audio
@@ -28,6 +37,7 @@ maxiOsc ramp;
 // default constructor. 
 maxiRecorder recorder;
 
+void setup();
 
 
 // Functions Declaration----------------------------------
@@ -43,7 +53,64 @@ int main()
     // TODO -- Use this one when can read from stream ok
     StartStream(play);
 
-    std::cout << "Bye." << std::endl;
+    
+    std::cout << "Converting samples" << std::endl;
+
+    // Remove if using double precision
+    std::vector<float> samples(samplePlayback.getLength(), 0.0f);
+
+    for (int i = 0; i < samplePlayback.getLength(); i++)
+        samples[i] = static_cast<float>(samplePlayback.amplitudes[i]);
+    
+
+    std::cout << "Running CQT" << std::endl;
+
+    // For now, q-const transform is done after the recording
+    cqtRes = DoCQT(samples, 25.0f, 4500.0f, 10.0f);
+
+    std::cout << "Saving to file..." << std::endl;
+
+    // Create and open the output file
+    ofstream spectFile("spectrogram.txt");
+
+
+
+
+
+    // std::tuple<std::complex<double>, int, int> currVal;
+
+
+    const std::vector<std::vector<std::complex<float>>> unsparsedMat = unsparse(cqtRes.spCQT);
+
+    // Output the spectrogram to file
+    for (int i = 0; i < cqtRes.spCQT.width; ++i)
+    {
+        spectFile << i << ":\t";
+        for (int j = 0; j < cqtRes.spCQT.height; ++j)
+        {
+
+            //TODO --> DO it without unsparsing the matrix
+            spectFile << "\t" << unsparsedMat[i][j];
+
+            /*currVal = cqtRes.spCQT.values;
+
+            spectFile << "\t";
+
+            if (std::get<1>(currVal) == i 
+             && std::get<2>(currVal) == j)
+                spectFile << abs(std::get<0>(currVal));
+            else
+                spectFile << "0.0";
+            */
+            
+        }
+        spectFile << "\n";
+    }
+
+    // Close the file
+    spectFile.close();
+
+    std::cout << "Bye!" << std::endl;
     return 0;
 }
 
@@ -103,9 +170,12 @@ void play(double *output) {
                 mags2[b] = mags[binIdx];
                 phases2[b] = phases[binIdx];
             }
-        }        
+        }
+
+        // Todo: Do the q-const transform here for realtime!!
+        // (Might have to use the genCQTKernel)
     }
-    myOut = myInverseFFT.process(mags2, phases2);
+    // myOut = myInverseFFT.process(mags2, phases2);
     
     //output[0] is the left output. output[1] is the right output
     output[0]=myOut;//simple as that!
