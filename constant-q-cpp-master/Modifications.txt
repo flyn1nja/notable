@@ -1,0 +1,1 @@
+J'ai ajouté vamp-plugin-sdk-2.10.0-binaries-amd64-linux au path de vamp

@@ -39,7 +39,7 @@
  // __WINDOWS_WASAPI__, /*!< The Microsoft WASAPI API. */
  // __WINDOWS_DS__,     /*!< The Microsoft DirectSound API. */
 
-std::function<void(double *)> playCBFunc = play;
+std::function<void(double *)> playCBFunc = run;
 
 
 // maxiSample samplePlayback;
@@ -65,7 +65,7 @@ std::function<void(double *)> playCBFunc = play;
 // 	// } while (badFile);
 // }
 
-void play(double *output) //run dac! Very very often. Too often in fact. er...
+void run(double *output) //run dac! Very very often. Too often in fact. er...
 {
 // 	output[0] = samplePlayback.playAtSpeed(0.68);
     
