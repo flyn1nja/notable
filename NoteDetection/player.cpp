@@ -10,21 +10,25 @@
 #include "player.h"
 #include "maximilian.h"
 #include <iostream>
+#include <sys/stat.h>
 
 
 #if defined( __WIN32__ ) || defined( _WIN32 )
 	// #define __WINDOWS_DS__
 	#include <dsound.h>
 	#include <windows.h>
-	#define sleep(t) Sleep(t*1000)
+	#include <fstream>
+	#define sleep(t) Sleep(t)
 	//#include <dsconf.h>
 	//#include <xaudio2.h>
 #elif (defined(__APPLE__) && defined(__MACH__))
 	// #define __MACOSX_CORE__
+	#include "unistd.h"
+	#define sleep(t) usleep(t*1000)
 #else
 	// #define __LINUX_ALSA__
 	#include "unistd.h"
-	#define Sleep(t) sleep(t/1000)
+	#define sleep(t) usleep(t*1000)
 #endif
 #include "RtAudio.h"
 
@@ -41,6 +45,8 @@
 
 std::function<void(double *)> playCBFunc = run;
 
+
+inline bool fileExists (const std::string& name);
 
 // maxiSample samplePlayback;
 
@@ -111,7 +117,7 @@ void StartStream(std::function<void(double *)> playCBFn)
 	RtAudio::StreamParameters parameters;
 	parameters.deviceId = dac.getDefaultOutputDevice();
 	parameters.nChannels = maxiSettings::channels;
-	parameters.firstChannel = 2;
+	parameters.firstChannel = 0;
 	unsigned int sampleRate = maxiSettings::sampleRate;
 	unsigned int bufferFrames = maxiSettings::bufferSize; 
 	std::vector<double> data(maxiSettings::channels,0);
@@ -134,24 +140,57 @@ void StartStream(std::function<void(double *)> playCBFn)
 	if ( dac.isStreamOpen() ) dac.closeStream();
 }
 
-
-void ReadFromFile(maxiSample& samplePlayback)
+// Returns the filename
+const std::string ReadFromFile(maxiSample& samplePlayback)
 {
-	std::string filename;
+	std::string fileNameStr = "";
+	// char* filename;
 	bool badFile = false;
 
-	const std::string defaultFile("/home/alexis/Bureau/Notable/notable/NoteDetection/snare.wav");
+	const std::string defaultFile("/home/alexis/Bureau/Notable/notable/NoteDetection/Mixolydian_Mode.wav");
 	
 	do 
 	{
-		std::cout << "Enter file to use (default to snare.wav): \t";
-		std::cin >> filename;
+		std::cout << "Enter file to use (enter \".\" to use default file Mixolydian_Mode.wav): \t";
+		std::cin >> fileNameStr;
+
+		if (fileNameStr.length() <= 1)
+			fileNameStr = defaultFile;
+
+		std::cout << "File is " << fileNameStr << std::endl;
 		
-		badFile = !samplePlayback.load(filename.length() > 1 ? filename : defaultFile);
+		// badFile = !samplePlayback.load(filename.length() > 1 ? filename : defaultFile, 0);
+		badFile = !fileExists(fileNameStr);
 		
 		if (badFile)
+		{
 			std::cout << "File cannot be found or opened. Try another file." << std::endl;
+			sleep(1000);
+		}
 
-		Sleep(1000);
 	} while (badFile);
+
+	return fileNameStr;
 }
+
+
+// #if defined(__linux__) || defined(__APPLE__)
+inline bool fileExists (const std::string& name)
+{
+  struct stat buffer;   
+  return stat(name.c_str(), &buffer) == 0; 
+}
+// #elif defined(__MINGW32__) || defined(__WIN32__)
+// inline bool fileExists (const std::string& name)
+// {
+//     if (FILE *file = fopen(name.c_str(), "r"))
+// 	{
+//         fclose(file);
+//         return true;
+//     }
+// 	else
+// 	{
+//         return false;
+//     }   
+// }
+// #endif
