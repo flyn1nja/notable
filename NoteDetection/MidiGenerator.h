@@ -1,34 +1,22 @@
-#include <QObject>
-#include <drumstick/qsmf.h>
+#include <vector>
 
-struct MidiEvent
+namespace MidiGenerator
 {
-    long absTime;
-    int  status;
-    int  data1;
-    int  data2;
-};
+    struct MidiEvent
+    {
+        long absTime;
+        int  status;
+        int  data1;
+        int  data2;
 
-class Sequence : public QList<MidiEvent>
-{
-public:
-    virtual ~Sequence();
-    void sort();
-};
+    };
 
-class SMFBuilder : public QObject
-{
-    Q_OBJECT
-public:
-    SMFBuilder();
-    void run(QString fileName);
-    void generate();
+    typedef std::vector<MidiEvent> MidiSequence;
 
-public slots:
-    void errorHandler(const QString& errorStr);
-    void trackHandler(int track);
+    void outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs);
 
-private:
-    drumstick::QSmf *m_engine;
-    Sequence m_sequence;
-};
+    inline bool operator<(MidiGenerator::MidiEvent & lhs, MidiGenerator::MidiEvent & rhs) { return lhs.absTime < rhs.absTime; }
+    inline bool operator<(const MidiGenerator::MidiEvent & lhs, MidiGenerator::MidiEvent & rhs) { return lhs.absTime < rhs.absTime; }
+    inline bool operator<(MidiGenerator::MidiEvent & lhs, const MidiGenerator::MidiEvent & rhs) { return lhs.absTime < rhs.absTime; }
+    inline bool operator<(const MidiGenerator::MidiEvent & lhs, const MidiGenerator::MidiEvent & rhs) { return lhs.absTime < rhs.absTime; }
+}

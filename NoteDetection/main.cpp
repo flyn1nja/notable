@@ -14,6 +14,12 @@
 #include <complex>
 #include <tuple>
 
+#include <sndfile.h>
+
+#include <getopt.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <cstdlib>
 
 
 #include "../constant-q-cpp-master/cq/ConstantQ.h"
@@ -22,15 +28,7 @@
 #include "../constant-q-cpp-master/cq/CQSpectrogram.h"
 #include "../constant-q-cpp-master/src/Pitch.h"
 
-#include <sndfile.h>
-
-#include <iostream>
-
-#include <getopt.h>
-#include <unistd.h>
-#include <sys/time.h>
-#include <cstdlib>
-
+#include "MidiGenerator.h"
 
 
 maxiSample samplePlayback; 
@@ -71,6 +69,7 @@ void processCQTFrame(std::vector<float> frame, int& frameId, CQBase* cq);
 int processCQTFromFile(const std::string& filename, ConstantQ* cq);
 int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect);
 
+void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs);
 std::string getNoteName(float freq);
 
 
@@ -778,9 +777,11 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
     std::vector<double> duration;
     std::vector<double> cqin;
 
+    int count = -1;
+
     while (inframe < sfinfo.frames)
     {
-        int count = -1;
+        count = -1;
 	
         if ((count = sf_readf_float(sndfile, fbuf, ibs)) < 0)
             break;
@@ -803,15 +804,12 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
         cqin.clear();
 
         inframe += count;
-
-        // std::cout << "Inframe #" << std::to_string(inframe) << std::endl;
     }
 
-    sf_close(sndfile);
-
-    
     timeval etv;
     (void)gettimeofday(&etv, 0);
+    
+    sf_close(sndfile);    
         
     etv.tv_sec -= tv.tv_sec;
     if (etv.tv_usec < tv.tv_usec) {
@@ -845,48 +843,12 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
             max = 0.0;
             fmax = -1.0;
         }
-
-        // std::cout << max << "\t\t";
-        
-        // std::cout << std::endl;
     }
-    
-    ofstream spectFile("spectrogram.txt");
-    float centsOffset = 0.0;
-    int midiPitch = 0;
-    std::string note;
-    int lastN = 0;
-    float lastMax = maxs[0];
 
-    for (int n = 1; n < maxs.size(); ++n)
-        if (fabs(maxs[n+1] - lastMax) > 0.001)
-        {
-            if (maxs[n] > 0.0005)
-            {
-                std::cout << std::endl;
-                midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
-                note = getNoteName(fmaxs[n]);
-
-                std::printf("%d - %d |  A: %.3f - f: %.3f -- Note: %s, Midi: %d, C.Offset: %.2f", lastN, n, maxs[n], fmaxs[n], note.c_str(), midiPitch, centsOffset);
-
-                ++n;
-                lastN = n;
-                lastMax = maxs[n];
-
-            spectFile << "A: " << std::to_string(maxs[n]) << " - f: " << std::to_string(fmaxs[n]) << " -- Note: " << note.c_str()
-                << ",  Midi: " << std::to_string(midiPitch) << ", C.Offset: " << std::to_string(centsOffset) << std::endl;
-            }
-            else
-            {
-                std::cout << "x ";
-                spectFile << "x ";
-            }
-        }
-
-    std::cout << std::endl;
+    outputToFile(maxs, fmaxs);
+    MidiGenerator::outputToMIDI(maxs, fmaxs);
 
     cqspect = std::move(&cq);
-    spectFile.close();
     
     return 0;
 }
@@ -932,4 +894,44 @@ std::string getNoteName(float freq)
             return std::string(names[(note-1) % 12]) + std::string(" - ") + std::string(names[note % 12]);
 
     return std::string("?");
+}
+
+void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs)
+{
+        
+    ofstream spectFile("notable_spectrogram.txt");
+    float centsOffset = 0.0;
+    int midiPitch = 0;
+    std::string note;
+    int lastN = 0;
+    float lastMax = maxs[0];
+
+    for (int n = 1; n < maxs.size(); ++n)
+        if (fabs(maxs[n+1] - lastMax) > 0.001)
+        {
+            if (maxs[n] > 0.0005)
+            {
+                std::cout << std::endl;
+                midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
+                note = getNoteName(fmaxs[n]);
+
+                std::printf("%d - %d |  A: %.3f - f: %.3f -- Note: %s, Midi: %d, C.Offset: %.2f", lastN, n, maxs[n], fmaxs[n], note.c_str(), midiPitch, centsOffset);
+
+                ++n;
+                lastN = n;
+                lastMax = maxs[n];
+
+            spectFile << "A: " << std::to_string(maxs[n]) << " - f: " << std::to_string(fmaxs[n]) << " -- Note: " << note.c_str()
+                << ",  Midi: " << std::to_string(midiPitch) << ", C.Offset: " << std::to_string(centsOffset) << std::endl;
+            }
+            else
+            {
+                std::cout << "x ";
+                spectFile << "x ";
+            }
+        }
+
+    std::cout << std::endl;
+
+    spectFile.close();
 }
