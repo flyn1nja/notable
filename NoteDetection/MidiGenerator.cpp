@@ -7,6 +7,7 @@
 #include <fstream>
 #include <sstream>
 #include <cstdint>
+#include <iomanip>
 
 #if BYTE_ORDER == BIG_ENDIAN
 #define IS_CORRECT_ENDIAN true
@@ -17,10 +18,18 @@
 constexpr short NOTE_ON = 0b1001;
 constexpr short NOTE_OFF = 0b1000;
 
-inline void sort(MidiGenerator::MidiSequence& seq)
-{
-    std::stable_sort(seq.begin(), seq.end());
-}
+// const uint UNITS_PER_BEAT = swap(40); // quarter note duration in ticks
+constexpr ulong QUARTER_LENGTH_FACTOR = 5; // quarter note duration factor in ticks
+constexpr uint VELOCITY_ON_FACTOR = 20;
+
+
+std::string NoteOnToString(const MidiGenerator::MidiEvent& evt);
+std::string NoteOffToString(const MidiGenerator::MidiEvent& evt);
+std::string DelayToString(int delay);
+
+
+void insertNoteOffEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch);
+void insertNoteOnEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch, double amplitude);
 
 // Swaps the bytes if needed
 template <typename T> 
@@ -42,81 +51,19 @@ T swap(const T& arg)
     #endif
 }
 
-// void SMFBuilder::trackHandler(int )
-// {
-//     // meta events
-//     m_engine->writeBpmTempo(0, 100); // m.m.=100 (andante)
-//     m_engine->writeTimeSignature(0, 4, 2, 18, 8);  // ts = 4/4
-//     m_engine->writeKeySignature(0, 0, major_mode); // C major
-//     m_engine->writeMidiEvent(0, program_chng, 0, 0);  // grand piano
-//     // note events
-//     long last_time = 0;
-//     for(auto ev : m_sequence)
-//     {
-//         long delta = ev.absTime - last_time;
-//         last_time = ev.absTime;
-//         m_engine->writeMidiEvent(delta,  ev.status, 0, ev.data1, ev.data2);
-//     }
-//     // final event
-//     m_engine->writeMetaEvent(0, end_of_track); 
-// }
 
-// void SMFBuilder::run(QString fileName)
-// {
-//     m_engine->setDivision(120); // ticks per quarter note
-//     m_engine->setFileFormat(0); // single track
-//     m_engine->setTracks(1);
-//     m_engine->writeToFile(fileName);
-// }
 
-// void MidiGenerator::generate()
-// {
-//     QList<float> times = { 0.0,  1.0,  2.0,  3.0,  4.0,  5.0,  6.0,  9.0,  9.0,  9.0, 10.0, 10.0, 10.0, 11.0, 11.0};
-//     QList<float> notes = {57.0, 59.0, 60.0, 62.0, 64.0, 65.0, 67.0, 57.0, 60.0, 64.0, 65.0, 62.0, 59.0, 64.0, 67.0};
-//     long quarter_length = 120; // quarter note duration in ticks
-//     int VELOCITY_ON_FACTOR = 100; // forte
-
-//     for ( int i=0; i<times.length(); ++i) {
-//         long event_time = static_cast<long>(times[i] * quarter_length);
-//         int midi_note = static_cast<int>(notes[i]);
-        
-//         // insert note on event
-//         MidiGenerator::MidiEvent noteOn;
-//         noteOn.absTime = event_time;
-//         noteOn.status = note_on;
-//         noteOn.data1 = midi_note;
-//         noteOn.data2 = velocityOn;
-//         m_sequence.append(noteOn);
-
-//         // insert note off event
-//         MidiGenerator::MidiEvent noteOff;
-//         noteOff.absTime = event_time + quarter_length;
-//         noteOff.status = note_off;
-//         noteOff.data1 = midi_note;
-//         noteOff.data2 = 0; // note off
-//         m_sequence.append(noteOff);
-//     }
-//     m_sequence.sort();
-// }
+inline void sort(MidiGenerator::MidiSequence& seq)
+{
+    std::stable_sort(seq.begin(), seq.end());
+}
 
 void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs)
 {
-    const ulong UNITS_PER_BEAT = swap(40); // quarter note duration in ticks
-    constexpr ulong QUARTER_LENGTH_FACTOR = 1; // quarter note duration factor in ticks
-    constexpr uint VELOCITY_ON_FACTOR = 20;
+    // UNUSED
+    const uint UNITS_PER_BEAT = swap(10); // quarter note duration in ticks
 
     std::ofstream midiFile("notable_output.mid", std::ios::out | std::ios::binary );
-    float centsOffset = 0.0;
-    int midiPitch = 0;
-    int lastN = 0;
-    int inputsBetween = 2;
-    float lastMax = maxs[0];
-    float lastF = -1.0f;
-    float noteMaxAmp = maxs[0];
-    bool notePlaying = false;
-
-    MidiGenerator::MidiSequence sequence = MidiGenerator::MidiSequence();
-
 
     // * Write the header
     // --> Header Chunk
@@ -130,8 +77,10 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     midiFile.write("\0\1", 2); // file format. 0 = single track file format, 1 = multi track file format 
     midiFile.write("\0\2", 2); // number of tracks that follow 
     // ! Revoir ! //
-    midiFile.write(reinterpret_cast<const char *>(&UNITS_PER_BEAT), 2); // unit of time for delta timing. It represents the units per beat. For example, +96 would mean 96 ticks per beat
+    // midiFile.write(reinterpret_cast<const char *>(&UNITS_PER_BEAT), 2); // unit of time for delta timing. It represents the units per beat. For example, +96 would mean 96 ticks per beat
+    midiFile.write("\1\xE0", 2); // number of tracks that follow 
     
+
     // Initial info track
     midiFile.write("MTrk", 4);
     midiFile.write("\0\0\0\x17", 4);
@@ -147,14 +96,16 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     midiFile.write("\0\0", 2);
 
     // Time signature
-    const u_long TIME_SIG_PARAMS = swap(0x0402240800);
+    // const u_long TIME_SIG_PARAMS = swap(0x0402240800);
     midiFile.write("\xFF\x58\x04", 3);
-    midiFile.write(reinterpret_cast<const char *>(&TIME_SIG_PARAMS), 5);
+    midiFile.write("\x04\x02\x18\x08\0", 5);
+    // midiFile.write(reinterpret_cast<const char *>(&TIME_SIG_PARAMS), 5);
     
     // Tempo
-    const uint TEMPO_PARAMS = swap(0x0927c000);
+    // const uint TEMPO_PARAMS = swap(0x0927c000);
     midiFile.write("\xFF\x51\x03", 3);
-    midiFile.write(reinterpret_cast<const char *>(&TEMPO_PARAMS), 4);
+    midiFile.write("\x09\x27\xC0\0", 4);
+    // midiFile.write(reinterpret_cast<const char *>(&TEMPO_PARAMS), 4);
 
     midiFile.write("\xFF\x2F\x00", 3); // End of track
     
@@ -163,103 +114,215 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     // --> Track 2
     midiFile.write("MTrk", 4);
 
+    float centsOffset = 0.0;
+    int lastN = 0;
+    int inputsBetween = 2;
+    int midiPitch = Pitch::getPitchForFrequency(fmaxs[0], &centsOffset);
+    double noteMaxAmp = maxs[0];
     bool isNextSameFreq;
+    bool notePlaying = false;
+
+    bool hasToPlay = false;
+    bool hasToStop = false;
+    bool willPlay = false;
+    bool willStop = false;
+
+    MidiGenerator::MidiSequence sequence = MidiGenerator::MidiSequence();
+
+
 
     for (int n = 0; n < maxs.size()-1; ++n)
     {
-        isNextSameFreq = n != 0 && abs(Pitch::getPitchForFrequency(fmaxs[n])
-                         - Pitch::getPitchForFrequency(fmaxs[n+1])) != 0;
+        isNextSameFreq = abs(midiPitch - Pitch::getPitchForFrequency(fmaxs[n+1])) == 0;
+                        //  && sequence.size() != 0;
 
-        if (maxs[n] >= 1 && abs(maxs[n] - lastMax) > 0.01)
+        // std::cout << abs(Pitch::getPitchForFrequency(fmaxs[n])
+        //              - Pitch::getPitchForFrequency(fmaxs[n+1])) << std::endl;
+
+         
+
+
+        // if (n+1 == maxs.size()-1 && notePlaying) // End of file reached
+        // {
+            
+        //     insertNoteOffEvt(sequence, n, midiPitch);
+        //     notePlaying = false;
+        //     break;
+        // }
+        // else if (isNextSameFreq) // Same note is being played
+        // {
+        //     if (maxs[n] < 1)
+        //     {
+        //         if (!notePlaying)
+        //         {
+        //             ++inputsBetween;
+        //             continue;
+        //         }
+        //         else
+        //         {
+        //             insertNoteOffEvt(sequence, n, midiPitch);
+        //             notePlaying = false;
+        //         }
+        //     }
+        //     else
+        //     {
+        //         if (maxs[n] > noteMaxAmp)
+        //             noteMaxAmp = maxs[n];
+
+        //         ++inputsBetween;
+        //     }
+        // }
+        // else if (!isNextSameFreq          // Changing frequency
+        //         && noteMaxAmp >= 1        // Amp is considerably high
+        //         && inputsBetween >= 1     // At least 2 samples apart
+        //         || !notePlaying && noteMaxAmp >= 1)
+        // {
+        //     if (notePlaying)
+        //         insertNoteOffEvt(sequence, n, midiPitch);
+        //     else
+        //         notePlaying = true;
+
+        //     // Insert note on event
+        //     insertNoteOnEvt(sequence, lastN, midiPitch, std::max(noteMaxAmp, maxs[n]));
+
+        //     // TODO  Mettre le cents offset dans le pitch?
+        //     midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
+
+        //     lastN = n;
+        //     noteMaxAmp = maxs[n];
+        //     inputsBetween = 0;
+        // }
+        // else 
+        // {
+        //     ++inputsBetween;
+        // }
+
+
+       hasToPlay = noteMaxAmp >= 1 &&                        // Of signigficant amplitude
+                (sequence.size() == 0                        // First note 
+                || !isNextSameFreq                           // New note (another frequency)
+                || !notePlaying);                            // Has reached high enough amplitude
+
+       hasToStop = (notePlaying || willPlay) &&              // Has to be playing
+                   (noteMaxAmp < 0.5                         // Note no longer of high enough amplitude
+                 || n+1 == maxs.size()-1                     // End of file reached
+                 || !isNextSameFreq);                        // New note (another frequency)
+
+
+        if (willPlay && willStop)
+        //  && inputsBetween >= 2 && hasToPlay)
         {
-            if (!isNextSameFreq && lastN != n)
+            insertNoteOnEvt(sequence, lastN, midiPitch, noteMaxAmp);
+            insertNoteOffEvt(sequence, n, midiPitch);
+
+            notePlaying = true;
+
+            std::cout << "Note On at " << lastN << "  --  Note Off at " << n << std::endl;
+
+            midiPitch = Pitch::getPitchForFrequency(fmaxs[n+1], &centsOffset);
+
+            lastN = n+1;
+            noteMaxAmp = maxs[n+1];
+            inputsBetween = 0;
+            willPlay = false;
+            willStop = false;
+        }
+        else if (willPlay && willStop)
+        {
+            // Test phase to check if it doesn't do some funky stuff (ignores small notes)
+            ++inputsBetween;
+            if (hasToPlay || hasToStop)
             {
-                if (notePlaying)
-                {
-                    // Insert note off event
-                    MidiGenerator::MidiEvent noteOff;
-                    noteOff.absTime = n * QUARTER_LENGTH_FACTOR;
-                    noteOff.status = NOTE_OFF;
-                    noteOff.data1 = midiPitch;
-                    noteOff.data2 = 0; // Note off velocity, use 0
-                    sequence.push_back(noteOff);
-                }
-                else
-                    notePlaying = true;
-
-                // TODO  Mettre le cents offset dans le pitch?
-                midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
-
-                long eventTime = static_cast<long>(n - lastN);
-
-                // Insert note on event
-                MidiGenerator::MidiEvent noteOn;
-                noteOn.absTime = lastN * QUARTER_LENGTH_FACTOR;
-                noteOn.status = NOTE_ON;
-                noteOn.data1 = midiPitch;
-                noteOn.data2 = VELOCITY_ON_FACTOR * noteMaxAmp;
-                sequence.push_back(noteOn);
-
-                lastN = n+1;
-                lastF = fmaxs[n];
-                noteMaxAmp = 0;
-                inputsBetween = 0;
-
-                // midiFile << ;
-            }
-            else 
-            {
-                if (notePlaying && maxs[n] < 1 && isNextSameFreq)
-                {
-                    notePlaying = false;
-
-                    // Insert note off event
-                    MidiGenerator::MidiEvent noteOff;
-                    noteOff.absTime = n * QUARTER_LENGTH_FACTOR;
-                    noteOff.status = NOTE_OFF;
-                    noteOff.data1 = midiPitch;
-                    noteOff.data2 = 0; // Note off velocity, use 0
-                    sequence.push_back(noteOff);
-                }
-                else
-                {
-                    if (isNextSameFreq && maxs[n] > noteMaxAmp)
-                        noteMaxAmp = maxs[n];
-                    else if (!isNextSameFreq)
-                    {
-                        lastF = fmaxs[n];
-                        lastN = n+1;
-                    }
-                }
-
-                ++inputsBetween;
+                willPlay = false;
+                willStop = false;
             }
         }
+
+        if (willStop && !willPlay)
+        {
+            insertNoteOffEvt(sequence, n, midiPitch);
+            notePlaying = false;
+            noteMaxAmp = 0;
+            willStop = false;
+        }
+
+        if (!willStop && !willPlay)
+        {
+            if (noteMaxAmp < maxs[n])
+            {
+                noteMaxAmp = maxs[n];
+                lastN = n;
+            }
+            ++inputsBetween;
+        }
+
+        if (hasToPlay)
+            willPlay = true;
+        if (hasToStop)
+            willStop = true;
     }
 
     // Sort the sequence
     sort(sequence);
 
-    std::string outputNotes;
-    long prevTime = 0l;
-    int timeDelta = 0;
-    ulong outputVal = 0x0;
-    ulong delay = 0x0;
-    char out[16];
+    using namespace std::string_literals;
+
+    std::string outputNotes = ""s;
+
+    // std::vector<int> values = std::vector<int>();
+#if 1
+    int totalLen = 0;
 
     for (int n = 0; n < sequence.size(); ++n)
     {
-        timeDelta = sequence[n].absTime - prevTime;
+
+        if (sequence[n].status == 9)
+            outputNotes.append(NoteOnToString(sequence[n]));
+        else
+        {
+            outputNotes.append(NoteOffToString(sequence[n]));
+            outputNotes.append("\0"s);
+            ++totalLen;
+        }
+
+        totalLen += 3;
+
+
+        if (n + 1 < sequence.size() && sequence[n+1].status == 8)
+        {
+            outputNotes.append(DelayToString(sequence[n+1].absTime - sequence[n].absTime));
+            totalLen += 2;
+        }
+
+    }
+#else
+    int timeDelta = 0;
+    int outputVal = 0x0;
+    int delay = 0x0;
+    char out[11];
+    std::vector<bool> hasDelay = std::vector<bool>();
+    bool followedByDelay = false;
+
+    for (int n = 0; n < sequence.size(); ++n)
+    {
+
+        if (n + 2 < sequence.size() && sequence[n+2].status == 8)
+            timeDelta = sequence[n+1].absTime - sequence[n].absTime;
+        else
+            timeDelta = 0;
 
 
         outputVal = sequence[n].status << 0x14;
         outputVal |= sequence[n].data1 << 0x8;
         outputVal |= sequence[n].data2;
         
-        if (timeDelta > 0)
+        followedByDelay = timeDelta > 0;
+        hasDelay.push_back(followedByDelay);
+
+        if (followedByDelay)
         {
             delay = 0x8100;
-            delay |= timeDelta;
+            delay |= std::min(timeDelta, 0xFF);
         }
         else
             delay = 0;
@@ -271,21 +334,22 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
 
 
         // track_event = <v_time> + <midi_event> | <meta_event> | <sysex_event>
-        int d = std::snprintf(out, 6, "%06lx", outputVal);
+        int d = std::snprintf(out, 7, "%06lx", outputVal);
         outputNotes.append(out);
 
         if (timeDelta > 0)
         {
-            std::snprintf(out+d, 4, "%04lx", delay);
+            std::snprintf(out+d, 5, "%04lx", delay);
             outputNotes.append(out);
         }
     
         outputVal = 0;
         delay = 0;
-        prevTime = sequence[n].absTime;
     }
 
-    ulong lenCStr = swap(outputNotes.length());
+    hasDelay.push_back(false);
+
+    int lenCStr = swap(static_cast<int>(outputNotes.length()));
 
     // Length of track
     midiFile.write(reinterpret_cast<const char *>(&lenCStr), 4);
@@ -297,40 +361,122 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     std::cout << "Writing notes: " << outputNotes << std::endl;
 
     std::stringstream ss;
-    constexpr int CHUNK_SIZE = 6;
-    uint val = 0;
-    int remainder = 0;
+    int chunkSize = 3;
+    int currSize = 0;
+    int val = 0;
+    int pos = 0;
 
     for (int c = 0; c < outputNotes.length(); c+=2)
     {
         ss << outputNotes.substr(c,2);
-        if (c > 0 && c % CHUNK_SIZE == 0)
+        ++currSize;
+        if (c > 0 && currSize == chunkSize)
         {
             ss >> std::hex >> val;
-            std::cout << val << std::endl;
+            std::cout << std::hex << val << std::endl;
             val = swap(val);
-            midiFile.write(reinterpret_cast<const char *>(&val), CHUNK_SIZE);
-            val = 0;
+            midiFile.write(reinterpret_cast<const char *>(&val), chunkSize);
+
+            ++pos;
+            chunkSize = hasDelay[pos] ? 2 : 3;
             ss.clear();
+            val = 0;
+            currSize = 0;
         }
-        else if (outputNotes.length() - c < CHUNK_SIZE)
-        {
+        else if (outputNotes.length() - c < chunkSize)
             ss >> val;
-            ++remainder;
-        }
         
     }
 
     val = swap(val);
-    midiFile.write(reinterpret_cast<const char *>(&val), remainder);
 
+    midiFile.write(reinterpret_cast<const char *>(&val), chunkSize);
+#endif
     // ss << std::hex << outputNotes;
     // midiFile.write(, lenCStr);
 
+    int lenCStr = swap(static_cast<int>(outputNotes.length()));
 
+    // Length of track
+    midiFile.write(reinterpret_cast<const char *>(&lenCStr), 4);
+    midiFile.write("\00", 1);
+
+    // Track name
+    midiFile.write("\xFF\x03", 2);
+    midiFile.write("\00\00", 2);
+
+    midiFile.write(outputNotes.c_str(), totalLen); // End of track
 
     std::cout << "End of track" << std::endl;
     midiFile.write("\xFF\x2F\x00", 3); // End of track
 
     midiFile.close();
+}
+
+void insertNoteOffEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch)
+{
+    // Insert note off event
+    MidiGenerator::MidiEvent noteOff;
+    noteOff.absTime = (n * QUARTER_LENGTH_FACTOR)/50;
+    noteOff.status = NOTE_OFF;
+    noteOff.data1 = midiPitch;
+    noteOff.data2 = 0; // Note off velocity, use 0
+    sequence.push_back(noteOff);
+}
+
+void insertNoteOnEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch, double amplitude)
+{
+    // Insert note on event
+    MidiGenerator::MidiEvent noteOn;
+    noteOn.absTime = (n * QUARTER_LENGTH_FACTOR)/50;
+    noteOn.status = NOTE_ON;
+    noteOn.data1 = midiPitch;
+    noteOn.data2 = std::min(VELOCITY_ON_FACTOR * amplitude, 127.0);
+    sequence.push_back(noteOn);
+}
+
+template<typename T>
+std::string intToHex(T integer, int w=sizeof(T)*2)
+{
+  std::stringstream ss;
+  ss << "0x" << std::setfill ('\0') << std::setw(w) 
+         << std::hex << integer;
+  return ss.str();
+}
+
+std::string NoteOnToString(const MidiGenerator::MidiEvent& evt)
+{
+    using namespace std::string_literals;
+
+    int pitch = evt.data1;
+    int velocity = evt.data2;
+    std::string out = "\x90"s;
+    out.append(reinterpret_cast<char *>(&pitch),1);
+    out.append(reinterpret_cast<char *>(&velocity),1);
+
+    return out;
+    // return out.append(reinterpret_cast<const char *>(&pitch)).append(reinterpret_cast<const char *>(&velocity));
+}
+
+std::string NoteOffToString(const MidiGenerator::MidiEvent& evt)
+{
+    using namespace std::string_literals;
+
+    int pitch = evt.data1;
+    std::string out = "\x80"s;
+    out.append(reinterpret_cast<char *>(&pitch));
+    out.append("\0"s);
+
+    return out;
+}
+
+std::string DelayToString(int delay)
+{
+    using namespace std::string_literals;
+
+    std::string out = "\x81"s;
+    delay = std::min(delay, 0xFF);
+    out.append(reinterpret_cast<char *>(&delay),1);
+
+    return out;
 }
