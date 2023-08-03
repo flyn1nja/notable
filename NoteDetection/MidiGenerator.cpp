@@ -198,12 +198,13 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
         // }
 
 
-       hasToPlay = noteMaxAmp >= 1 &&                        // Of signigficant amplitude
+       hasToPlay = !willPlay                                 // Not already playing
+                && noteMaxAmp >= 1 &&                        // Of signigficant amplitude
                 (sequence.size() == 0                        // First note 
                 || !isNextSameFreq                           // New note (another frequency)
                 || !notePlaying);                            // Has reached high enough amplitude
 
-       hasToStop = (notePlaying || willPlay) &&              // Has to be playing
+       hasToStop = notePlaying &&              // Has to be playing
                    (noteMaxAmp < 0.5                         // Note no longer of high enough amplitude
                  || n+1 == maxs.size()-1                     // End of file reached
                  || !isNextSameFreq);                        // New note (another frequency)
@@ -215,7 +216,7 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
             insertNoteOnEvt(sequence, lastN, midiPitch, noteMaxAmp);
             insertNoteOffEvt(sequence, n, midiPitch);
 
-            notePlaying = true;
+            // notePlaying = true;
 
             std::cout << "Note On at " << lastN << "  --  Note Off at " << n << std::endl;
 
@@ -231,11 +232,11 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
         {
             // Test phase to check if it doesn't do some funky stuff (ignores small notes)
             ++inputsBetween;
-            if (hasToPlay || hasToStop)
-            {
-                willPlay = false;
-                willStop = false;
-            }
+            // if (hasToPlay || hasToStop)
+            // {
+            //     willPlay = false;
+            //     willStop = false;
+            // }
         }
 
         if (willStop && !willPlay)
@@ -246,7 +247,7 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
             willStop = false;
         }
 
-        if (!willStop && !willPlay)
+        if (!willStop)
         {
             if (noteMaxAmp < maxs[n])
             {
@@ -257,9 +258,29 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
         }
 
         if (hasToPlay)
+        {
+            std::cout << "HasToPlay at " << n << std::endl;
             willPlay = true;
+            notePlaying = true;
+            lastN = n;
+        }
         if (hasToStop)
+        {
+            std::cout << "HasToStop at " << n << std::endl;
             willStop = true;
+            notePlaying = false;
+        }
+    }
+
+    //Place the last note (if necessary)
+    if (willPlay && willStop)
+    {
+        insertNoteOnEvt(sequence, lastN, midiPitch, noteMaxAmp);
+        insertNoteOffEvt(sequence, maxs.size()-1, midiPitch);
+
+        // notePlaying = true;
+
+        std::cout << "Note On at " << lastN << "  --  Note Off at " << maxs.size()-1 << std::endl;
     }
 
     // Sort the sequence
