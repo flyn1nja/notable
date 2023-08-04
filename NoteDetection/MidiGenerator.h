@@ -14,6 +14,8 @@ namespace MidiGenerator
     typedef std::vector<MidiEvent> MidiSequence;
 
     void outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs);
+    void outputToMIDIPolyphonic(const std::vector<std::vector<double>>& maxs, const std::vector<std::vector<double>>& fmaxs);
+
 
     inline bool operator<(MidiGenerator::MidiEvent & lhs, MidiGenerator::MidiEvent & rhs) { return lhs.absTime < rhs.absTime; }
     inline bool operator<(const MidiGenerator::MidiEvent & lhs, MidiGenerator::MidiEvent & rhs) { return lhs.absTime < rhs.absTime; }

@@ -68,8 +68,13 @@ int runCQTSpectrogram(const std::string& filename, CQSpectrogram* cqspect);
 void processCQTFrame(std::vector<float> frame, int& frameId, CQBase* cq);
 int processCQTFromFile(const std::string& filename, ConstantQ* cq);
 int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect);
+void findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
+                  std::vector<double>& maxs, std::vector<double>& fmaxs, float minFreq=100.0f);
+void findMaxFreqsPolyphonic(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
+                  std::vector<std::vector<double>>& maxsPoly, std::vector<std::vector<double>>& fmaxsPoly);
 
 void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs);
+void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs);
 std::string getNoteName(float freq);
 
 
@@ -80,8 +85,9 @@ constexpr bool FROM_RECORDING = true;
 
 constexpr int TUNING_FREQ = 440;
 
-// bool ReadFromFile(const std::string&);
-// bool StartStream(std::function<void(double *)> playCBFn);
+// * Set this to true to consider all major notes instead of only the main one
+constexpr bool POLYPHONIC = false;
+
 
 //This is main()
 int main()
@@ -747,9 +753,11 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
     int channels = sfinfo.channels;
     float *fbuf = new float[channels * ibs];
 
-    if (maxFreq == 0.0) maxFreq = sfinfo.samplerate / 3;
-    if (minFreq == 0.0) minFreq = 100;
-    if (bpo == 0) bpo = 40;
+    // if (maxFreq == 0.0) maxFreq = sfinfo.samplerate / 3;
+    // if (maxFreq == 0.0) maxFreq = 14080;
+    if (maxFreq == 0.0) maxFreq = 7040;
+    if (minFreq == 0.0) minFreq = 110;
+    if (bpo == 0) bpo = 42;
 
     CQParameters params(sfinfo.samplerate, minFreq, maxFreq, bpo);
     CQSpectrogram cq(params, CQSpectrogram::InterpolateHold);
@@ -821,32 +829,37 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
     double sec = double(etv.tv_sec) + (double(etv.tv_usec) / 1000000.0);
     std::cerr << "elapsed time (not counting init): " << sec << " sec, frames/sec at input: " << inframe/sec << std::endl;
 
-    double max = 0.0;
-    double fmax = -1.0;
-    std::vector<double> maxs = std::vector<double>();
-    std::vector<double> fmaxs = std::vector<double>();
-
-    for (int i = 0; i < blocks.size(); i-=-1)
+    if (POLYPHONIC)
     {
-        for (int t = 0; t < blocks[i].size(); ++t)
-        {
-            for (int b = 0; b < blocks[i][t].size(); ++b)
-            {
-                if (abs(blocks[i][t][b]) > abs(max))
-                {
-                    max = blocks[i][t][b];
-                    fmax = cq.getBinFrequency(static_cast<double>(b));
-                }
-            }
-            maxs.push_back(max);
-            fmaxs.push_back(fmax);
-            max = 0.0;
-            fmax = -1.0;
-        }
-    }
+        std::vector<std::vector<double>> maxs = std::vector<std::vector<double>>(1, std::vector<double>());
+        std::vector<std::vector<double>> fmaxs = std::vector<std::vector<double>>(1, std::vector<double>());
 
-    outputToFile(maxs, fmaxs);
-    MidiGenerator::outputToMIDI(maxs, fmaxs);
+        // Find the maximum frequencies
+        findMaxFreqsPolyphonic(cq, blocks, maxs, fmaxs);
+
+        // // Write to file
+        // outputToFile(maxs, fmaxs);
+
+        //Generate MIDI
+        MidiGenerator::outputToMIDIPolyphonic(maxs, fmaxs);
+    }
+    else
+    {
+        std::vector<double> maxs = std::vector<double>();
+        std::vector<double> fmaxs = std::vector<double>();
+
+        // Find the maximum frequencies
+        findMaxFreqs(cq, blocks, maxs, fmaxs);
+
+        // Filter the output
+        filterOutput(maxs, fmaxs);
+
+        // Write to file
+        outputToFile(maxs, fmaxs);
+
+        //Generate MIDI
+        MidiGenerator::outputToMIDI(maxs, fmaxs);
+    }
 
     cqspect = std::move(&cq);
     
@@ -869,6 +882,87 @@ void processCQTFrame(const std::vector<double>& frame, int& frameId, ConstantQ* 
     }
     
     std::cout << std::endl;
+}
+
+void findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
+                  std::vector<double>& maxs, std::vector<double>& fmaxs, float minFreq)
+{
+    double max = 0.0;
+    double fmax = -1.0;
+
+    for (int i = 0; i < blocks.size(); i-=-1)
+    {
+        for (int t = 0; t < blocks[i].size(); ++t)
+        {
+            for (int b = blocks[i][t].size()-1; b >= 0; --b)
+            // for (int b = 0; b < blocks[i][t].size(); ++b)
+            {
+                if (abs(blocks[i][t][b]) - abs(max) > max * 0.1 * log(b+2))
+                {
+                    double fmaxPrev = fmax;
+                    double maxPrev = max;
+
+                    max = blocks[i][t][b];
+                    fmax = cq.getBinFrequency(static_cast<double>(b));
+
+                    // Cancel the update if we're skipping too much coeffs
+                    if (fmaxPrev > 4 * minFreq
+                     && abs((fmax / fmaxPrev)) > 1.75)
+                    {
+                        max = maxPrev;
+                        fmax = fmaxPrev;
+                        break;
+                    }
+                }
+            }
+            maxs.push_back(max);
+            fmaxs.push_back(fmax);
+            max = 0.0;
+            fmax = -1.0;
+        }
+    }
+}
+
+void findMaxFreqsPolyphonic(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
+                  std::vector<std::vector<double>>& maxsPoly, std::vector<std::vector<double>>& fmaxsPoly)
+{
+    double max = 0.0;
+    double fmax = -1.0;
+    // std::vector<double> maxRow = std::vector<double>();
+    // std::vector<double> fmaxRow = std::vector<double>();
+
+    for (int i = 0; i < blocks.size(); i-=-1)
+    {
+        for (int t = 0; t < blocks[i].size(); ++t)
+        {
+            std::vector<double> maxRow = std::vector<double>();
+            std::vector<double> fmaxRow = std::vector<double>();
+
+            for (int b = blocks[i][t].size()-1; b >= 0; --b)
+            // for (int b = 0; b < blocks[i][t].size(); ++b)
+            {
+                if (abs(blocks[i][t][b]) - abs(max) > max * 0.1 * log(b+2))
+                {
+                    max = blocks[i][t][b];
+                    fmax = cq.getBinFrequency(static_cast<double>(b));
+
+                    maxRow.push_back(max);
+                    fmaxRow.push_back(fmax);
+                    std::cout << fmax << " -> ";
+                }
+            }
+
+            std::cout << fmax << std::endl;
+            max = 0.0;
+            fmax = -1.0;
+            // std::vector<double> maxRowCopy = maxRow;
+            // std::vector<double> fmaxRowCopy = fmaxRow;
+            // std::copy(maxRow.begin(), maxRow.end(), std::back_inserter(maxRowCopy));
+            // std::copy(fmaxRow.begin(), fmaxRow.end(), std::back_inserter(fmaxRowCopy));
+            maxsPoly.push_back(maxRow);
+            fmaxsPoly.push_back(fmaxRow);
+        }
+    }
 }
 
 
@@ -934,4 +1028,9 @@ void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fm
     std::cout << std::endl;
 
     spectFile.close();
+}
+
+void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs)
+{
+
 }
