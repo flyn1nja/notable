@@ -188,7 +188,7 @@ const std::string ReadFromFile(maxiSample& samplePlayback, double& minFreq, doub
 
 	try
 	{
-		std::cout << "Max freq (enter \".\" to use default 7040 Hz): \t";
+		std::cout << "Max freq (enter \".\" to use default 3520 Hz): \t";
 		std::cin >> maxFreqStr;
 
 		if (maxFreqStr == ".") maxFreq = 0;

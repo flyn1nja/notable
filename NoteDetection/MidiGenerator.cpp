@@ -34,6 +34,8 @@ std::string DelayToString(int delay, int& len);
 void insertNoteOffEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch);
 void insertNoteOnEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch, double amplitude);
 
+static float msPerBeat = 0;
+
 // Swaps the bytes if needed
 template <typename T> 
 T swap(const T& arg)
@@ -61,12 +63,14 @@ inline void sort(MidiGenerator::MidiSequence& seq)
     std::stable_sort(seq.begin(), seq.end());
 }
 
-void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs)
+void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs, float duration)
 {
     // UNUSED
     const uint UNITS_PER_BEAT = swap(10); // quarter note duration in ticks
 
-    std::ofstream midiFile("notable_output.mid", std::ios::out | std::ios::binary );
+    msPerBeat = duration / maxs.size() * 1000;
+
+    std::ofstream midiFile("notable_output.mid", std::ios::out | std::ios::binary);
 
     // * Write the header
     // --> Header Chunk
@@ -135,6 +139,23 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     {
         isNextSameFreq = abs(midiPitch - Pitch::getPitchForFrequency(fmaxs[n+1])) == 0;
 
+        // Ignore false note changes (brief jumps, go see farther)
+        if (!isNextSameFreq && notePlaying)
+        {
+            for (int i = 2; i < MIN_SAMPLES_COUNT && i + n < maxs.size()-1; ++i)
+            {
+                // Ignore if it's a silence / note break
+                if (maxs[n+i] < MIN_AMP_TO_STOP) break;
+
+                // If the pitch goes back to original, cancel the note change
+                if (Pitch::getPitchForFrequency(fmaxs[n+i]) == midiPitch)
+                {
+                    isNextSameFreq = true;
+                    break;
+                }
+            }
+        }
+
         hasToPlay = !willPlay                                // Not already playing
                 && noteMaxAmp >= MIN_AMP_TO_PLAY &&          // Of signigficant amplitude
                 (sequence.size() == 0                        // First note 
@@ -143,9 +164,33 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
 
         hasToStop = notePlaying &&                           // Has to be playing
                    (noteMaxAmp < MIN_AMP_TO_STOP             // Note no longer of high enough amplitude
-                 || n+1 == maxs.size()-1                     // End of file reached
+                 || n >= maxs.size()-MIN_SAMPLES_COUNT       // End of file reached
                  || !isNextSameFreq);                        // New note (another frequency)
 
+
+        if (hasToPlay)
+        {
+            std::cout << "HasToPlay at " << n << std::endl;
+            willPlay = true;
+            notePlaying = true;
+            midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
+        }
+        if (hasToStop)
+        {
+            std::cout << "HasToStop at " << n << std::endl;
+            willStop = true;
+            notePlaying = false;
+        }
+
+
+        if (!willStop)
+        {
+            if (maxs[n] > noteMaxAmp)
+            {
+                noteMaxAmp = maxs[n];
+            }
+            ++inputsBetween;
+        }
 
         if (willPlay && willStop)
         {
@@ -190,29 +235,6 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
         //     noteMaxAmp = 0;
         //     willStop = false;
         // }
-
-        if (!willStop)
-        {
-            if (maxs[n] > noteMaxAmp)
-            {
-                noteMaxAmp = maxs[n];
-            }
-            ++inputsBetween;
-        }
-
-        if (hasToPlay)
-        {
-            std::cout << "HasToPlay at " << n << std::endl;
-            willPlay = true;
-            notePlaying = true;
-            midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
-        }
-        if (hasToStop)
-        {
-            std::cout << "HasToStop at " << n << std::endl;
-            willStop = true;
-            notePlaying = false;
-        }
     }
 
     //Place the last note (if necessary)
@@ -606,7 +628,7 @@ void insertNoteOffEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitc
 {
     // Insert note off event
     MidiGenerator::MidiEvent noteOff;
-    noteOff.absTime = (n * QUARTER_LENGTH_FACTOR);
+    noteOff.absTime = static_cast<int>(n * QUARTER_LENGTH_FACTOR * msPerBeat + 0.5f); // rounded
     noteOff.status = NOTE_OFF;
     noteOff.data1 = midiPitch;
     noteOff.data2 = 0; // Note off velocity, use 0
@@ -617,7 +639,7 @@ void insertNoteOnEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch
 {
     // Insert note on event
     MidiGenerator::MidiEvent noteOn;
-    noteOn.absTime = (n * QUARTER_LENGTH_FACTOR);
+    noteOn.absTime = static_cast<int>(n * QUARTER_LENGTH_FACTOR * msPerBeat + 0.5f); // rounded
     noteOn.status = NOTE_ON;
     noteOn.data1 = midiPitch;
     noteOn.data2 = std::min(VELOCITY_ON_FACTOR * amplitude, 127.0);

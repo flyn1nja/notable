@@ -52,7 +52,7 @@ constexpr bool POLYPHONIC = false;
 
 
 // Max frequency of the cqt. Usually samplerate / 3 as rule of thumb
-constexpr int MAX_FREQ = 7040;
+constexpr int MAX_FREQ = 3520;
 
 // Min frequency of the cqt
 constexpr int MIN_FREQ = 110;
@@ -791,7 +791,6 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
     (void)gettimeofday(&tv, 0);
 
     std::vector<CQBase::RealBlock> blocks;
-    std::vector<double> duration;
     std::vector<double> cqin;
 
     int count = -1;
@@ -867,7 +866,7 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
         outputToFile(maxs, fmaxs);
 
         //Generate MIDI
-        MidiGenerator::outputToMIDI(maxs, fmaxs);
+        MidiGenerator::outputToMIDI(maxs, fmaxs, inframe/static_cast<float>(sfinfo.samplerate));
     }
 
     cqspect = std::move(&cq);

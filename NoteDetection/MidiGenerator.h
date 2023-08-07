@@ -13,7 +13,7 @@ namespace MidiGenerator
 
     typedef std::vector<MidiEvent> MidiSequence;
 
-    void outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs);
+    void outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs, float duration);
     void outputToMIDIPolyphonic(const std::vector<std::vector<double>>& maxs, const std::vector<std::vector<double>>& fmaxs);
 
 
