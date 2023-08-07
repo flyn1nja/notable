@@ -16,5 +16,5 @@ class maxiSample;
 
 void StartStream(std::function<void(double *)> playCBFn
     = std::function<void(double *)>());
-const std::string ReadFromFile(maxiSample& samplePlayback);
+const std::string ReadFromFile(maxiSample& samplePlayback, double& minFreq, double& maxFreq);
 void run(double *);

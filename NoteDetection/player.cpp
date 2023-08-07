@@ -141,10 +141,12 @@ void StartStream(std::function<void(double *)> playCBFn)
 }
 
 // Returns the filename
-const std::string ReadFromFile(maxiSample& samplePlayback)
+const std::string ReadFromFile(maxiSample& samplePlayback, double& minFreq, double& maxFreq)
 {
 	std::string fileNameStr = "";
-	// char* filename;
+	std::string minFreqStr = "";
+	std::string maxFreqStr = "";
+
 	bool badFile = false;
 
 	const std::string defaultFile("/home/alexis/Bureau/Notable/notable/NoteDetection/Mixolydian_Mode.wav");
@@ -170,6 +172,34 @@ const std::string ReadFromFile(maxiSample& samplePlayback)
 
 	} while (badFile);
 
+	try
+	{
+		std::cout << "Min freq (enter \".\" to use default 110 Hz): \t";
+		std::cin >> minFreqStr;
+
+		if (minFreqStr == ".") minFreq = 0;
+
+		minFreq = std::stod(minFreqStr);
+	}
+	catch(const std::exception& e)
+	{
+		minFreq = 0;
+	}
+
+	try
+	{
+		std::cout << "Max freq (enter \".\" to use default 7040 Hz): \t";
+		std::cin >> maxFreqStr;
+
+		if (maxFreqStr == ".") maxFreq = 0;
+
+		maxFreq = std::stod(maxFreqStr);
+	}
+	catch(const std::exception& e)
+	{
+		maxFreq = 0;
+	}
+
 	return fileNameStr;
 }
 
@@ -177,8 +207,8 @@ const std::string ReadFromFile(maxiSample& samplePlayback)
 // #if defined(__linux__) || defined(__APPLE__)
 inline bool fileExists (const std::string& name)
 {
-  struct stat buffer;   
-  return stat(name.c_str(), &buffer) == 0; 
+    struct stat buffer;   
+    return stat(name.c_str(), &buffer) == 0; 
 }
 // #elif defined(__MINGW32__) || defined(__WIN32__)
 // inline bool fileExists (const std::string& name)

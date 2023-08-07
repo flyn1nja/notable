@@ -31,6 +31,37 @@
 #include "MidiGenerator.h"
 
 
+// Constant Declaration----------------------------------
+
+// * Set this to false to have it load a file instead
+constexpr bool FROM_RECORDING = true;
+
+// * Tuning frequency (440 Hz by default)
+constexpr int TUNING_FREQ = 440;
+
+// * How much the fundamental has priority over the harmonics
+// * > 1  to prioritize lower octaves (fundamental), < 1 to prioritize higher octaves (harmonics)
+constexpr double LOW_OCTAVE_PRIORITY_FACTOR = 1.5; 
+
+// * Minimal amplitude ratio required to update the max note stored
+// * 0 to get any higher values, 1 to have at least double the current max
+constexpr double MIN_AMP_RATIO_TO_UPDATE = 0.25; 
+
+// * Set this to true to consider all major notes instead of only the main one
+constexpr bool POLYPHONIC = false;
+
+
+// Max frequency of the cqt. Usually samplerate / 3 as rule of thumb
+constexpr int MAX_FREQ = 7040;
+
+// Min frequency of the cqt
+constexpr int MIN_FREQ = 110;
+
+// Bins per octave. Usually 12 for the 12 intervals
+constexpr int BPO = 42; // 42
+
+
+
 maxiSample samplePlayback; 
 maxiFFT myFFT;
 // maxiIFFT myInverseFFT;
@@ -41,6 +72,9 @@ std::vector<float> phases2 = std::vector<float>(512);
 maxiEnvGen shiftEnv;
 
 std::string audioFileName;
+double maxFreq = MAX_FREQ;
+double minFreq = MIN_FREQ;
+int bpo = BPO;
 
 //* CQTResult cqtRes;
 
@@ -67,36 +101,24 @@ int runCQT(const std::string& filename, ConstantQ* constq);
 int runCQTSpectrogram(const std::string& filename, CQSpectrogram* cqspect);
 void processCQTFrame(std::vector<float> frame, int& frameId, CQBase* cq);
 int processCQTFromFile(const std::string& filename, ConstantQ* cq);
+// int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect);
 int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect);
-void findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
-                  std::vector<double>& maxs, std::vector<double>& fmaxs, float minFreq=100.0f);
+
+// Returns maximum amplitude of file
+double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
+                  std::vector<double>& maxs, std::vector<double>& fmaxs, float minFreq=MIN_FREQ);
 void findMaxFreqsPolyphonic(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
                   std::vector<std::vector<double>>& maxsPoly, std::vector<std::vector<double>>& fmaxsPoly);
 
 void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs);
-void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs);
+void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs, double maxMax);
 std::string getNoteName(float freq);
 
-
-
-// Constant Declaration----------------------------------
-// * Set this to false to have it load a file instead
-constexpr bool FROM_RECORDING = true;
-
-constexpr int TUNING_FREQ = 440;
-
-// * Set this to true to consider all major notes instead of only the main one
-constexpr bool POLYPHONIC = false;
 
 
 //This is main()
 int main()
 {
-    const int sampleRate = 44100;
-    const int minFreq = 8000;
-    const int maxFreq = 100;
-    const int binsCount = 60;
-
     setup();
 
     // TODO -- Use this one when can read from stream ok
@@ -118,10 +140,14 @@ int main()
 
     // const std::vector<std::vector<std::complex<float>>> unsparsedMat = QConstTrans::unsparse(cqtRes.spCQT);
 
-    CQParameters params(sampleRate,minFreq,maxFreq,binsCount);
+
+    CQParameters params(44100,MIN_FREQ,MAX_FREQ,BPO);
+
+
 
     CQSpectrogram* constq = new CQSpectrogram(params, CQSpectrogram::InterpolateHold);
-    processCQTSpectrFromFile(audioFileName, constq); // Use samples instead?
+    processCQTSpectrFromFile(audioFileName, constq); // * Use samples instead?
+
 
     // runCQT("../Mixolydian_Mode.wav", constq); // Use samples instead?
 
@@ -177,7 +203,7 @@ int main()
 void setup()
 {
     // samplePlayback.load("../../../beat2.wav");//load in your samples. Provide the full path to a wav file.
-    audioFileName = ReadFromFile(samplePlayback);
+    audioFileName = ReadFromFile(samplePlayback, minFreq, maxFreq);
     
     myFFT.setup(1024, 512, 1024);
     // myInverseFFT.setup(1024, 512, 1024);
@@ -264,10 +290,6 @@ void play(double *output)
 // Runs the CQT from the lib
 int runCQT(const std::string& filename, ConstantQ* constq)
 {
-    double maxFreq = 0;
-    double minFreq = 0;
-    int bpo = 0;
-    
     int c;
     SNDFILE *sndfile;
     // SNDFILE *sndfileOut;
@@ -496,10 +518,6 @@ int runCQT(const std::string& filename, ConstantQ* constq)
 // Runs the CQT with spectrogram from the lib
 int runCQTSpectrogram(const std::string& filename, CQSpectrogram* cqspect)
 {
-    double maxFreq = 0;
-    double minFreq = 0;
-    int bpo = 0;
-    
     int c;
     SNDFILE *sndfile;
     SNDFILE *sndDiffFile = 0;
@@ -606,10 +624,6 @@ int runCQTSpectrogram(const std::string& filename, CQSpectrogram* cqspect)
 
 int processCQTFromFile(const std::string& filename, ConstantQ* constq)
 {
-    double maxFreq = 0;
-    double minFreq = 0;
-    int bpo = 0;
-    
     int c;
     SNDFILE *sndfile;
     SNDFILE *sndDiffFile = 0;
@@ -731,11 +745,7 @@ int processCQTFromFile(const std::string& filename, ConstantQ* constq)
 }
 
 int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect)
-{
-    double maxFreq = 0;
-    double minFreq = 0;
-    int bpo = 0;
-    
+{    
     SNDFILE *sndfile;
     SNDFILE *sndDiffFile = 0;
     SF_INFO sfinfo;
@@ -754,10 +764,9 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
     float *fbuf = new float[channels * ibs];
 
     // if (maxFreq == 0.0) maxFreq = sfinfo.samplerate / 3;
-    // if (maxFreq == 0.0) maxFreq = 14080;
-    if (maxFreq == 0.0) maxFreq = 7040;
-    if (minFreq == 0.0) minFreq = 110;
-    if (bpo == 0) bpo = 42;
+    if (maxFreq == 0.0) maxFreq = MAX_FREQ;
+    if (minFreq == 0.0) minFreq = MIN_FREQ;
+    // if (bpo == 0) bpo = BPO;
 
     CQParameters params(sfinfo.samplerate, minFreq, maxFreq, bpo);
     CQSpectrogram cq(params, CQSpectrogram::InterpolateHold);
@@ -849,10 +858,10 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
         std::vector<double> fmaxs = std::vector<double>();
 
         // Find the maximum frequencies
-        findMaxFreqs(cq, blocks, maxs, fmaxs);
+        double max = findMaxFreqs(cq, blocks, maxs, fmaxs);
 
         // Filter the output
-        filterOutput(maxs, fmaxs);
+        filterOutput(maxs, fmaxs, max);
 
         // Write to file
         outputToFile(maxs, fmaxs);
@@ -884,43 +893,62 @@ void processCQTFrame(const std::vector<double>& frame, int& frameId, ConstantQ* 
     std::cout << std::endl;
 }
 
-void findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
+double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
                   std::vector<double>& maxs, std::vector<double>& fmaxs, float minFreq)
 {
     double max = 0.0;
+    double maxMax = 0.0;
     double fmax = -1.0;
+    double ampnext = 0.0;
+    double fnext = -1.0;
+    int bmax = 0;
 
     for (int i = 0; i < blocks.size(); i-=-1)
     {
         for (int t = 0; t < blocks[i].size(); ++t)
         {
+            // Todo: Add time importance
+
+            bmax = blocks[i][t].size()-1;
+
             for (int b = blocks[i][t].size()-1; b >= 0; --b)
             // for (int b = 0; b < blocks[i][t].size(); ++b)
             {
-                if (abs(blocks[i][t][b]) - abs(max) > max * 0.1 * log(b+2))
+                fnext = cq.getBinFrequency(static_cast<double>(b));
+                ampnext = blocks[i][t][b];
+
+                // The bigger the gap, the less likely it is we want a new max, especially in higher freqs
+                if ((abs(ampnext * log2(b+1))
+                   - abs(max * LOW_OCTAVE_PRIORITY_FACTOR * log2(bmax+1)))
+                   > MIN_AMP_RATIO_TO_UPDATE * max * log2(b+1))
+                // if (abs(blocks[i][t][b]) - abs(max) > max * MIN_AMP_RATIO_TO_UPDATE * log(b+1))
                 {
-                    double fmaxPrev = fmax;
-                    double maxPrev = max;
-
-                    max = blocks[i][t][b];
-                    fmax = cq.getBinFrequency(static_cast<double>(b));
-
-                    // Cancel the update if we're skipping too much coeffs
-                    if (fmaxPrev > 4 * minFreq
-                     && abs((fmax / fmaxPrev)) > 1.75)
-                    {
-                        max = maxPrev;
-                        fmax = fmaxPrev;
+                    // Cancel the update if we're skipping too much coeffs and the update is not worth it
+                    if (fnext > 4 * minFreq
+                    && (fnext / fmax) > 1.75
+                    && (ampnext/max) < LOW_OCTAVE_PRIORITY_FACTOR
+                    && max != 0.0)
                         break;
-                    }
+
+                    max = ampnext;
+                    fmax = fnext;
+                    bmax = b;
+
+                    maxMax = std::max(max, maxMax);
                 }
             }
+            
             maxs.push_back(max);
             fmaxs.push_back(fmax);
+
             max = 0.0;
             fmax = -1.0;
+            ampnext = 0.0;
+            fnext = -1.0;
         }
     }
+
+    return maxMax;
 }
 
 void findMaxFreqsPolyphonic(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
@@ -941,7 +969,7 @@ void findMaxFreqsPolyphonic(const CQSpectrogram& cq, const std::vector<CQBase::R
             for (int b = blocks[i][t].size()-1; b >= 0; --b)
             // for (int b = 0; b < blocks[i][t].size(); ++b)
             {
-                if (abs(blocks[i][t][b]) - abs(max) > max * 0.1 * log(b+2))
+                if (abs(blocks[i][t][b]) - abs(max) > max * MIN_AMP_RATIO_TO_UPDATE * log(b+1))
                 {
                     max = blocks[i][t][b];
                     fmax = cq.getBinFrequency(static_cast<double>(b));
@@ -1030,7 +1058,10 @@ void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fm
     spectFile.close();
 }
 
-void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs)
+void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs, double maxMax)
 {
-
+    // Normalize output
+    for (int i = 0; i < maxs.size(); ++i)
+        maxs[i] /= maxMax;
+    
 }
