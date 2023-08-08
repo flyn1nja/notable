@@ -51,13 +51,13 @@ constexpr double MIN_AMP_RATIO_TO_UPDATE = 0.25;
 constexpr bool POLYPHONIC = false;
 
 
-// Max frequency of the cqt. Usually samplerate / 3 as rule of thumb
+// Max frequency of the cqt. Usually samplerate / 3 as rule of thumb when unknown
 constexpr int MAX_FREQ = 3520;
 
 // Min frequency of the cqt
 constexpr int MIN_FREQ = 110;
 
-// Bins per octave. Usually 12 for the 12 intervals
+// Bins per octave.
 constexpr int BPO = 42; // 42
 
 
@@ -110,7 +110,7 @@ double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock
 void findMaxFreqsPolyphonic(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock>& blocks,
                   std::vector<std::vector<double>>& maxsPoly, std::vector<std::vector<double>>& fmaxsPoly);
 
-void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs);
+void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs, const float duration);
 void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs, double maxMax);
 std::string getNoteName(float freq);
 
@@ -837,6 +837,8 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
     double sec = double(etv.tv_sec) + (double(etv.tv_usec) / 1000000.0);
     std::cerr << "elapsed time (not counting init): " << sec << " sec, frames/sec at input: " << inframe/sec << std::endl;
 
+    const float duration = inframe/static_cast<float>(sfinfo.samplerate);
+
     if (POLYPHONIC)
     {
         std::vector<std::vector<double>> maxs = std::vector<std::vector<double>>(1, std::vector<double>());
@@ -863,10 +865,10 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
         filterOutput(maxs, fmaxs, max);
 
         // Write to file
-        outputToFile(maxs, fmaxs);
+        outputToFile(maxs, fmaxs, duration);
 
         //Generate MIDI
-        MidiGenerator::outputToMIDI(maxs, fmaxs, inframe/static_cast<float>(sfinfo.samplerate));
+        MidiGenerator::outputToMIDI(maxs, fmaxs, duration);
     }
 
     cqspect = std::move(&cq);
@@ -1017,7 +1019,7 @@ std::string getNoteName(float freq)
     return std::string("?");
 }
 
-void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs)
+void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs, const float duration)
 {
         
     ofstream spectFile("notable_spectrogram.txt");
@@ -1026,6 +1028,8 @@ void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fm
     std::string note;
     int lastN = 0;
     float lastMax = maxs[0];
+
+    float msPerBeat = duration / maxs.size();
 
     for (int n = 1; n < maxs.size(); ++n)
         if (fabs(maxs[n+1] - lastMax) > 0.001)
@@ -1036,7 +1040,8 @@ void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fm
                 midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
                 note = getNoteName(fmaxs[n]);
 
-                std::printf("%d - %d |  A: %.3f - f: %.3f -- Note: %s, Midi: %d, C.Offset: %.2f", lastN, n, maxs[n], fmaxs[n], note.c_str(), midiPitch, centsOffset);
+                std::printf("%.2f - %.2f |  A: %.3f - f: %.3f -- Note: %s, Midi: %d, C.Offset: %.2f",
+                    lastN * msPerBeat, n * msPerBeat, maxs[n], fmaxs[n], note.c_str(), midiPitch, centsOffset);
 
                 ++n;
                 lastN = n;
