@@ -45,7 +45,7 @@ constexpr double LOW_OCTAVE_PRIORITY_FACTOR = 1.5;
 
 // * Minimal amplitude ratio required to update the max note stored
 // * 0 to get any higher values, 1 to have at least double the current max
-constexpr double MIN_AMP_RATIO_TO_UPDATE = 0.25; 
+constexpr double MIN_AMP_RATIO_TO_UPDATE = 1.35; 
 
 // * Set this to true to consider all major notes instead of only the main one
 constexpr bool POLYPHONIC = false;
@@ -60,6 +60,8 @@ constexpr int MIN_FREQ = 110;
 // Bins per octave.
 constexpr int BPO = 42; // 42
 
+// Inter buffer size
+constexpr int IBS = 1024;
 
 
 maxiSample samplePlayback; 
@@ -111,7 +113,7 @@ void findMaxFreqsPolyphonic(const CQSpectrogram& cq, const std::vector<CQBase::R
                   std::vector<std::vector<double>>& maxsPoly, std::vector<std::vector<double>>& fmaxsPoly);
 
 void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fmaxs, const float duration);
-void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs, double maxMax);
+void normalizeOutput(std::vector<double>& maxs, std::vector<double>& fmaxs, double maxMax);
 std::string getNoteName(float freq);
 
 
@@ -759,7 +761,7 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
 	    return 1;
     }
 
-    int ibs = 1024;
+    int ibs = IBS;
     int channels = sfinfo.channels;
     float *fbuf = new float[channels * ibs];
 
@@ -861,8 +863,8 @@ int processCQTSpectrFromFile(const std::string& filename, CQSpectrogram* cqspect
         // Find the maximum frequencies
         double max = findMaxFreqs(cq, blocks, maxs, fmaxs);
 
-        // Filter the output
-        filterOutput(maxs, fmaxs, max);
+        // Normalize the output
+        normalizeOutput(maxs, fmaxs, max);
 
         // Write to file
         outputToFile(maxs, fmaxs, duration);
@@ -900,6 +902,7 @@ double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock
     double max = 0.0;
     double maxMax = 0.0;
     double fmax = -1.0;
+    double fprec = -1.0;
     double ampnext = 0.0;
     double fnext = -1.0;
     int bmax = 0;
@@ -912,6 +915,9 @@ double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock
 
             bmax = blocks[i][t].size()-1;
 
+            max = blocks[i][t][bmax];
+            fmax = cq.getBinFrequency(bmax);
+
             for (int b = blocks[i][t].size()-1; b >= 0; --b)
             // for (int b = 0; b < blocks[i][t].size(); ++b)
             {
@@ -921,15 +927,17 @@ double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock
                 // The bigger the gap, the less likely it is we want a new max, especially in higher freqs
                 if ((abs(ampnext * log2(b+1))
                    - abs(max * LOW_OCTAVE_PRIORITY_FACTOR * log2(bmax+1)))
-                   > MIN_AMP_RATIO_TO_UPDATE * max * log2(b+1))
+                   > MIN_AMP_RATIO_TO_UPDATE * max * log2(bmax-b+1))
                 // if (abs(blocks[i][t][b]) - abs(max) > max * MIN_AMP_RATIO_TO_UPDATE * log(b+1))
                 {
                     // Cancel the update if we're skipping too much coeffs and the update is not worth it
-                    if (fnext > 4 * minFreq
-                    && (fnext / fmax) > 1.75
+                    if (fnext > 0.5 * (maxFreq - minFreq) + minFreq
+                    // if (fnext > 4 * minFreq
+                    && ((fnext / fmax) > 1.75
+                    || (fnext / fprec) > 1.75)
                     && (ampnext/max) < LOW_OCTAVE_PRIORITY_FACTOR
                     && max != 0.0)
-                        break;
+                        continue;
 
                     max = ampnext;
                     fmax = fnext;
@@ -938,14 +946,11 @@ double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock
                     maxMax = std::max(max, maxMax);
                 }
             }
+
+            fprec = fmax;
             
             maxs.push_back(max);
             fmaxs.push_back(fmax);
-
-            max = 0.0;
-            fmax = -1.0;
-            ampnext = 0.0;
-            fnext = -1.0;
         }
     }
 
@@ -1031,10 +1036,10 @@ void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fm
 
     float msPerBeat = duration / maxs.size();
 
-    for (int n = 1; n < maxs.size(); ++n)
-        if (fabs(maxs[n+1] - lastMax) > 0.001)
+    for (int n = 0; n < maxs.size()-1; ++n)
+        if (fabs(maxs[n] - lastMax) > 0.1)
         {
-            if (maxs[n] > 0.0005)
+            if (maxs[n] > 0.02)
             {
                 std::cout << std::endl;
                 midiPitch = Pitch::getPitchForFrequency(fmaxs[n], &centsOffset);
@@ -1043,26 +1048,40 @@ void outputToFile(const std::vector<double>& maxs, const std::vector<double>& fm
                 std::printf("%.2f - %.2f |  A: %.3f - f: %.3f -- Note: %s, Midi: %d, C.Offset: %.2f",
                     lastN * msPerBeat, n * msPerBeat, maxs[n], fmaxs[n], note.c_str(), midiPitch, centsOffset);
 
-                ++n;
+                // ++n;
                 lastN = n;
                 lastMax = maxs[n];
 
-            spectFile << "A: " << std::to_string(maxs[n]) << " - f: " << std::to_string(fmaxs[n]) << " -- Note: " << note.c_str()
-                << ",  Midi: " << std::to_string(midiPitch) << ", C.Offset: " << std::to_string(centsOffset) << std::endl;
+                spectFile << "A: " << std::to_string(maxs[n]) << " - f: " << std::to_string(fmaxs[n]) << " -- Note: " << note.c_str()
+                    << ",  Midi: " << std::to_string(midiPitch) << ", C.Offset: " << std::to_string(centsOffset) << std::endl;
             }
             else
             {
-                std::cout << "x ";
-                spectFile << "x ";
+                std::printf("%.2f - %.2f |  A: %.3f < 0.025 - f: %.3f -- Muted",
+                    lastN * msPerBeat, n * msPerBeat, maxs[n], fmaxs[n]);
+                spectFile << "A: " << std::to_string(maxs[n]) << " - f: " << std::to_string(fmaxs[n]) << " -- Note: " << note.c_str()
+                    << ",  Midi: " << std::to_string(midiPitch) << ", C.Offset: " << std::to_string(centsOffset) << " - MUTED -" << std::endl;
             }
         }
+
+    // Do the last one
+    int n = maxs.size()-1;
+
+    std::cout << std::endl;
+
+    std::printf("%.2f - %.2f |  A: %.3f - f: %.3f -- Note: %s, Midi: %d, C.Offset: %.2f",
+        lastN * msPerBeat, n * msPerBeat, maxs[n], fmaxs[n], note.c_str(), midiPitch, centsOffset);
+
+    spectFile << "A: " << std::to_string(maxs[n]) << " - f: " << std::to_string(fmaxs[n]) << " -- Note: " << note.c_str()
+        << ",  Midi: " << std::to_string(midiPitch) << ", C.Offset: " << std::to_string(centsOffset) << std::endl;
+
 
     std::cout << std::endl;
 
     spectFile.close();
 }
 
-void filterOutput(std::vector<double>& maxs, std::vector<double>& fmaxs, double maxMax)
+void normalizeOutput(std::vector<double>& maxs, std::vector<double>& fmaxs, double maxMax)
 {
     // Normalize output
     for (int i = 0; i < maxs.size(); ++i)
