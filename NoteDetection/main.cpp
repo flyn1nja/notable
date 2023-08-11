@@ -45,7 +45,7 @@ constexpr double LOW_OCTAVE_PRIORITY_FACTOR = 1.5;
 
 // * Minimal amplitude ratio required to update the max note stored
 // * 0 to get any higher values, 1 to have at least double the current max
-constexpr double MIN_AMP_RATIO_TO_UPDATE = 1.35; 
+constexpr double MIN_AMP_RATIO_TO_UPDATE = 1.5; 
 
 // * Set this to true to consider all major notes instead of only the main one
 constexpr bool POLYPHONIC = false;
@@ -61,7 +61,7 @@ constexpr int MIN_FREQ = 110;
 constexpr int BPO = 42; // 42
 
 // Inter buffer size
-constexpr int IBS = 1024;
+constexpr int IBS = 512;
 
 
 maxiSample samplePlayback; 
@@ -930,14 +930,13 @@ double findMaxFreqs(const CQSpectrogram& cq, const std::vector<CQBase::RealBlock
                    > MIN_AMP_RATIO_TO_UPDATE * max * log2(bmax-b+1))
                 // if (abs(blocks[i][t][b]) - abs(max) > max * MIN_AMP_RATIO_TO_UPDATE * log(b+1))
                 {
-                    // Cancel the update if we're skipping too much coeffs and the update is not worth it
-                    if (fnext > 0.5 * (maxFreq - minFreq) + minFreq
-                    // if (fnext > 4 * minFreq
-                    && ((fnext / fmax) > 1.75
-                    || (fnext / fprec) > 1.75)
-                    && (ampnext/max) < LOW_OCTAVE_PRIORITY_FACTOR
-                    && max != 0.0)
-                        continue;
+                    // // Cancel the update if we're skipping too much coeffs and the update is not worth it
+                    // if (fnext > 0.25 * (maxFreq - minFreq) + minFreq
+                    // && ((fnext / fmax) > 1.75
+                    // || (fnext / fprec) > 1.75)
+                    // && (ampnext-max) < LOW_OCTAVE_PRIORITY_FACTOR
+                    // && max != 0.0)
+                    //     continue;
 
                     max = ampnext;
                     fmax = fnext;

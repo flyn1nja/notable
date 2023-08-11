@@ -20,8 +20,8 @@ constexpr short NOTE_OFF = 0b1000;
 
 constexpr float QUARTER_LENGTH_FACTOR = 1/2.4f; // Quarter note duration factor in ticks
 constexpr uint VELOCITY_ON_FACTOR = 127;        // Velocity (volume) factor ratio
-constexpr double MIN_AMP_TO_PLAY = 0.2;         // Minimum amplitude for a note to start playing
-constexpr double MIN_AMP_TO_STOP = 0.0375;      // Minimum amplitude for a note to continue playing
+constexpr double MIN_AMP_TO_PLAY = 0.25;        // Minimum amplitude for a note to start playing
+constexpr double MIN_AMP_TO_STOP = 0.0385;        // Minimum amplitude for a note to continue playing
 constexpr int MIN_SAMPLES_COUNT = 4;            // Minimum sample count for a note to be valid
 
 
@@ -156,15 +156,6 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
 
     for (int n = 0; n < maxs.size()-1; ++n)
     {
-        // if (abs(maxs[n] - noteMaxAmp) <= 0.1 
-        //  && maxs[n] < MIN_AMP_TO_PLAY
-        //  && n < maxs.size()-MIN_SAMPLES_COUNT  // End of file reached
-        //  && !isPlayingNote)
-        // {
-        //     prevN = n;
-        //     continue;
-        // }
-
         isNextSameFreq = abs(midiPitch - Pitch::getPitchForFrequency(fmaxs[n+1])) == 0;
 
         // Ignore false note changes (cancel brief jumps, go see further)
@@ -173,28 +164,32 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
             for (int i = 2; i < MIN_SAMPLES_COUNT && i + n < maxs.size()-1; ++i)
             {
                 // Ignore if it's a silence / note break
-                if (maxs[n+i] < MIN_AMP_TO_STOP) break;
+                // if (maxs[n+i] < MIN_AMP_TO_STOP) continue;
 
                 // If the pitch goes back to original, cancel the note change
-                if (Pitch::getPitchForFrequency(fmaxs[n+i]) == midiPitch)
+                if (maxs[n+i] >= MIN_AMP_TO_STOP &&
+                    Pitch::getPitchForFrequency(fmaxs[n+i]) == midiPitch)
                 {
                     isNextSameFreq = true;
-                    // skipUpdate = true;
+                    n = n+i; // Jump over the gap
+
                     break;
                 }
             }
-
-            // if (skipUpdate)
-            // {
-            //     skipUpdate = false;
-            //     continue;
-            // }
         }
-        else if (!willStop)
+        
+        if (!willStop)
         {
             // Save the new max amplitude
             if (maxs[n] > noteMaxAmp)
                 noteMaxAmp = maxs[n];
+            else if (!isPlayingNote
+                  && maxs[n] < MIN_AMP_TO_STOP
+                  && n < maxs.size()-MIN_SAMPLES_COUNT)  // End of file not reached)
+            {
+                prevN = n;
+                continue;
+            }
 
             ++inputsBetween;
         }
@@ -207,9 +202,9 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
 
         hasToStop = isPlayingNote &&                             // Has to be playing
                 // && n - prevN > MIN_SAMPLES_COUNT &&          // Is long enough in duration
-                (maxs[n] < MIN_AMP_TO_STOP                   // Note no longer of high enough amplitude
-                || n >= maxs.size()-MIN_SAMPLES_COUNT        // End of file reached
-                || !isNextSameFreq);                         // New note (another frequency)
+                (maxs[n] < MIN_AMP_TO_STOP && isNextSameFreq                   // Note no longer of high enough amplitude
+                || n >= maxs.size()-MIN_SAMPLES_COUNT                // End of file reached
+                || !isNextSameFreq && maxs[n+1] > MIN_AMP_TO_PLAY);                         // New note (another frequency)
 
 
         if (hasToStop && !willStop)
@@ -265,8 +260,8 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
                 willPlay = false;
                 willStop = false;
 
-                prevN = n;
-                noteMaxAmp = maxs[n];
+                prevN = n+1;
+                noteMaxAmp = 0;
             }
             else
             {
