@@ -15,7 +15,10 @@
 #define IS_CORRECT_ENDIAN false
 #endif
 
+// Code for Note On
 constexpr short NOTE_ON = 0b1001;
+
+// Code for Note Off
 constexpr short NOTE_OFF = 0b1000;
 
 constexpr float QUARTER_LENGTH_FACTOR = 1/2.4f; // Quarter note duration factor in ticks
@@ -26,17 +29,25 @@ constexpr int MIN_SAMPLES_COUNT = 3;            // Minimum sample count for a no
 
 
 
+//Write the string version of a note ON for midi output
 std::string NoteOnToString(const MidiGenerator::MidiEvent& evt);
+//Write the string version of a note OFF for midi output
 std::string NoteOffToString(const MidiGenerator::MidiEvent& evt);
+//Write the string version of a Delay for midi output
 std::string DelayToString(int delay, int& len);
 
 
+// Insert a note off
 void insertNoteOffEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch);
+
+// Insert a note on
 void insertNoteOnEvt(MidiGenerator::MidiSequence& sequence, int n, int midiPitch, double amplitude);
 
+// Millisecond per beat
 static float msPerBeat = 0;
 
 // Swaps the bytes if needed
+// Swap to Little endian if in Big endian
 template <typename T> 
 T swap(const T& arg)
 {
@@ -74,6 +85,7 @@ inline void sort(MidiGenerator::MidiSequence& seq)
     std::stable_sort(seq.begin(), seq.end());
 }
 
+// Generate the midi output
 void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vector<double>& fmaxs, float duration)
 {
     std::cout << std::endl;
@@ -90,17 +102,10 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     // * Write the header
     // --> Header Chunk
     midiFile.write("MThd", 4); // the literal string MThd, or in hexadecimal notation: 0x4d546864. These four characters at the start of the MIDI file indicate that this is a MIDI file. 
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(6)), 4); // length of the header chunk (always 6 bytes long -- the size of the next three fields). 
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(0)), 2); // file format. 0 = single track file format 
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(1)), 2); // number of tracks that follow 
-    // // ! Revoir ! //
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(96)), 2); // unit of time for delta timing. It represents the units per beat. For example, +96 would mean 96 ticks per beat
     midiFile.write("\0\0\0\6", 4); // length of the header chunk (always 6 bytes long -- the size of the next three fields). 
     midiFile.write("\0\1", 2); // file format. 0 = single track file format, 1 = multi track file format 
     midiFile.write("\0\2", 2); // number of tracks that follow 
-    // ! Revoir ! //
-    // midiFile.write(reinterpret_cast<const char *>(&UNITS_PER_BEAT), 2); // unit of time for delta timing. It represents the units per beat. For example, +96 would mean 96 ticks per beat
-    midiFile.write("\1\xE0", 2); // number of tracks that follow 
+    midiFile.write("\1\xE0", 2); // unit of time for delta timing. It represents the units per beat. For example, +96 would mean 96 ticks per beat
     
 
     // Initial info track
@@ -118,17 +123,12 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     midiFile.write("\0\0", 2);
 
     // Time signature
-    // const u_long TIME_SIG_PARAMS = swap(0x0402240800);
     midiFile.write("\xFF\x58\x04", 3);
     midiFile.write("\x04\x02\x24\x08\0", 5);
-    // midiFile.write(reinterpret_cast<const char *>(&TIME_SIG_PARAMS), 5);
     
     // Tempo
-    // const uint TEMPO_PARAMS = swap(0x0927c000);
     midiFile.write("\xFF\x51\x03", 3);
-    // midiFile.write("\x09\x27\xC0\0", 4);
     midiFile.write("\x12\x4F\x80\0", 4);
-    // midiFile.write(reinterpret_cast<const char *>(&TEMPO_PARAMS), 4);
 
     midiFile.write("\xFF\x2F\x00", 3); // End of track
 
@@ -154,6 +154,7 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
 
     MidiGenerator::MidiSequence sequence = MidiGenerator::MidiSequence();
 
+    // Iterate on the notes to make sequence
     for (int n = 0; n < maxs.size()-1; ++n)
     {
         isNextSameFreq = abs(midiPitch - Pitch::getPitchForFrequency(fmaxs[n+1])) == 0;
@@ -295,8 +296,6 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
 
     std::string outputNotes = ""s;
 
-    // std::vector<int> values = std::vector<int>();
-#if 1
     int totalLen = 0;
 
     for (int n = 0; n < sequence.size(); ++n)
@@ -320,106 +319,8 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
         }
 
     }
-#else
-    int timeDelta = 0;
-    int outputVal = 0x0;
-    int delay = 0x0;
-    char out[11];
-    std::vector<bool> hasDelay = std::vector<bool>();
-    bool followedByDelay = false;
 
-    for (int n = 0; n < sequence.size(); ++n)
-    {
-
-        if (n + 2 < sequence.size() && sequence[n+2].status == 8)
-            timeDelta = sequence[n+1].absTime - sequence[n].absTime;
-        else
-            timeDelta = 0;
-
-
-        outputVal = sequence[n].status << 0x14;
-        outputVal |= sequence[n].data1 << 0x8;
-        outputVal |= sequence[n].data2;
-        
-        followedByDelay = timeDelta > 0;
-        hasDelay.push_back(followedByDelay);
-
-        if (followedByDelay)
-        {
-            delay = 0x8100;
-            delay |= std::min(timeDelta, 0xFF);
-        }
-        else
-            delay = 0;
-
-        std::printf("val: %06lx  delay: %04lx\t", outputVal, delay);
-
-        // outputVal = swap(outputVal);
-        // delay = swap(delay);
-
-
-        // track_event = <v_time> + <midi_event> | <meta_event> | <sysex_event>
-        int d = std::snprintf(out, 7, "%06lx", outputVal);
-        outputNotes.append(out);
-
-        if (timeDelta > 0)
-        {
-            std::snprintf(out+d, 5, "%04lx", delay);
-            outputNotes.append(out);
-        }
-    
-        outputVal = 0;
-        delay = 0;
-    }
-
-    hasDelay.push_back(false);
-
-    int lenCStr = swap(static_cast<int>(outputNotes.length()));
-
-    // Length of track
-    midiFile.write(reinterpret_cast<const char *>(&lenCStr), 4);
-
-    // Track name
-    midiFile.write("\xFF\x03", 2);
-    midiFile.write("\00\00", 2);
-
-    std::cout << "Writing notes: " << outputNotes << std::endl;
-
-    std::stringstream ss;
-    int chunkSize = 3;
-    int currSize = 0;
-    int val = 0;
-    int pos = 0;
-
-    for (int c = 0; c < outputNotes.length(); c+=2)
-    {
-        ss << outputNotes.substr(c,2);
-        ++currSize;
-        if (c > 0 && currSize == chunkSize)
-        {
-            ss >> std::hex >> val;
-            std::cout << std::hex << val << std::endl;
-            val = swap(val);
-            midiFile.write(reinterpret_cast<const char *>(&val), chunkSize);
-
-            ++pos;
-            chunkSize = hasDelay[pos] ? 2 : 3;
-            ss.clear();
-            val = 0;
-            currSize = 0;
-        }
-        else if (outputNotes.length() - c < chunkSize)
-            ss >> val;
-        
-    }
-
-    val = swap(val);
-
-    midiFile.write(reinterpret_cast<const char *>(&val), chunkSize);
-#endif
-    // ss << std::hex << outputNotes;
-    // midiFile.write(, lenCStr);
-
+    // Write notes length
     int lenCStr = swap(static_cast<int>(outputNotes.length()) + 3);
 
     // Length of track
@@ -430,6 +331,7 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     midiFile.write("\xFF\x03", 2);
     midiFile.write("\00\00", 2);
 
+    // Write all notes
     midiFile.write(outputNotes.c_str(), totalLen);
 
     std::cout << "End of track" << std::endl;
@@ -438,6 +340,8 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
     midiFile.close();
 }
 
+
+// Same as Output to MIDI, but for polyphonic mode (UNUSED -- not implemented)
 void MidiGenerator::outputToMIDIPolyphonic(const std::vector<std::vector<double>>& maxs, const std::vector<std::vector<double>>& fmaxs)
 {
     std::ofstream midiFile("notable_output.mid", std::ios::out | std::ios::binary );
@@ -445,16 +349,9 @@ void MidiGenerator::outputToMIDIPolyphonic(const std::vector<std::vector<double>
     // * Write the header
     // --> Header Chunk
     midiFile.write("MThd", 4); // the literal string MThd, or in hexadecimal notation: 0x4d546864. These four characters at the start of the MIDI file indicate that this is a MIDI file. 
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(6)), 4); // length of the header chunk (always 6 bytes long -- the size of the next three fields). 
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(0)), 2); // file format. 0 = single track file format 
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(1)), 2); // number of tracks that follow 
-    // // ! Revoir ! //
-    // midiFile.write(reinterpret_cast<const char *>(u_int8_t(96)), 2); // unit of time for delta timing. It represents the units per beat. For example, +96 would mean 96 ticks per beat
     midiFile.write("\0\0\0\6", 4); // length of the header chunk (always 6 bytes long -- the size of the next three fields). 
     midiFile.write("\0\1", 2); // file format. 0 = single track file format, 1 = multi track file format 
     midiFile.write("\0\2", 2); // number of tracks that follow 
-    // ! Revoir ! //
-    // midiFile.write(reinterpret_cast<const char *>(&UNITS_PER_BEAT), 2); // unit of time for delta timing. It represents the units per beat. For example, +96 would mean 96 ticks per beat
     midiFile.write("\1\xE0", 2); // number of tracks that follow 
     
 
@@ -473,16 +370,11 @@ void MidiGenerator::outputToMIDIPolyphonic(const std::vector<std::vector<double>
     midiFile.write("\0\0", 2);
 
     // Time signature
-    // const u_long TIME_SIG_PARAMS = swap(0x0402240800);
     midiFile.write("\xFF\x58\x04", 3);
     midiFile.write("\x04\x02\x18\x08\0", 5);
-    // midiFile.write(reinterpret_cast<const char *>(&TIME_SIG_PARAMS), 5);
-    
-    // Tempo
-    // const uint TEMPO_PARAMS = swap(0x0927c000);
+
     midiFile.write("\xFF\x51\x03", 3);
     midiFile.write("\x09\x27\xC0\0", 4);
-    // midiFile.write(reinterpret_cast<const char *>(&TEMPO_PARAMS), 4);
 
     midiFile.write("\xFF\x2F\x00", 3); // End of track
     
@@ -561,15 +453,6 @@ void MidiGenerator::outputToMIDIPolyphonic(const std::vector<std::vector<double>
                 willPlay[m] = false;
                 willStop[m] = false;
             }
-            else if (willPlay[m] && willStop[m])
-            {
-                // Test phase to check if it doesn't do some funky stuff (ignores small notes)
-                // if (hasToPlay || hasToStop)
-                // {
-                //     willPlay = false;
-                //     willStop = false;
-                // }
-            }
 
             if (willStop[m] && !willPlay[m])
             {
@@ -590,14 +473,12 @@ void MidiGenerator::outputToMIDIPolyphonic(const std::vector<std::vector<double>
 
             if (hasToPlay[m])
             {
-                // std::cout << "HasToPlay at " << n << std::endl;
                 willPlay[m] = true;
                 isPlayingNote[m] = true;
                 lastN[m] = n+1;
             }
             if (hasToStop[m])
             {
-                // std::cout << "HasToStop at " << n << std::endl;
                 willStop[m] = true;
                 isPlayingNote[m] = false;
             }
@@ -699,7 +580,6 @@ std::string NoteOnToString(const MidiGenerator::MidiEvent& evt)
     out.append(reinterpret_cast<char *>(&velocity),1);
 
     return out;
-    // return out.append(reinterpret_cast<const char *>(&pitch)).append(reinterpret_cast<const char *>(&velocity));
 }
 
 std::string NoteOffToString(const MidiGenerator::MidiEvent& evt)

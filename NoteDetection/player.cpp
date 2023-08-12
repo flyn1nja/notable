@@ -149,7 +149,7 @@ const std::string ReadFromFile(maxiSample& samplePlayback, double& minFreq, doub
 
 	bool badFile = false;
 
-	const std::string defaultFile("/home/alexis/Bureau/Notable/notable/NoteDetection/Mixolydian_Mode.wav");
+	const std::string defaultFile("../Mixolydian_Mode.wav");
 	
 	do 
 	{
