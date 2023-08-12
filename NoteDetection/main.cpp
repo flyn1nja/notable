@@ -41,11 +41,11 @@ constexpr int TUNING_FREQ = 440;
 
 // * How much the fundamental has priority over the harmonics
 // * > 1  to prioritize lower octaves (fundamental), < 1 to prioritize higher octaves (harmonics)
-constexpr double LOW_OCTAVE_PRIORITY_FACTOR = 1.5; 
+constexpr double LOW_OCTAVE_PRIORITY_FACTOR = 1.0; 
 
 // * Minimal amplitude ratio required to update the max note stored
 // * 0 to get any higher values, 1 to have at least double the current max
-constexpr double MIN_AMP_RATIO_TO_UPDATE = 1.5; 
+constexpr double MIN_AMP_RATIO_TO_UPDATE = 0.325;
 
 // * Set this to true to consider all major notes instead of only the main one
 constexpr bool POLYPHONIC = false;

@@ -20,9 +20,9 @@ constexpr short NOTE_OFF = 0b1000;
 
 constexpr float QUARTER_LENGTH_FACTOR = 1/2.4f; // Quarter note duration factor in ticks
 constexpr uint VELOCITY_ON_FACTOR = 127;        // Velocity (volume) factor ratio
-constexpr double MIN_AMP_TO_PLAY = 0.25;        // Minimum amplitude for a note to start playing
-constexpr double MIN_AMP_TO_STOP = 0.0385;        // Minimum amplitude for a note to continue playing
-constexpr int MIN_SAMPLES_COUNT = 4;            // Minimum sample count for a note to be valid
+constexpr double MIN_AMP_TO_PLAY = 0.3;         // Minimum amplitude for a note to start playing
+constexpr double MIN_AMP_TO_STOP = 0.045;        // Minimum amplitude for a note to continue playing
+constexpr int MIN_SAMPLES_COUNT = 3;            // Minimum sample count for a note to be valid
 
 
 
@@ -184,7 +184,7 @@ void MidiGenerator::outputToMIDI(const std::vector<double>& maxs, const std::vec
             if (maxs[n] > noteMaxAmp)
                 noteMaxAmp = maxs[n];
             else if (!isPlayingNote
-                  && maxs[n] < MIN_AMP_TO_STOP
+                  && maxs[n] < (MIN_AMP_TO_STOP+MIN_AMP_TO_PLAY)/2
                   && n < maxs.size()-MIN_SAMPLES_COUNT)  // End of file not reached)
             {
                 prevN = n;
