@@ -1,6 +1,40 @@
 # Notable
 
+### Presentation
 
+*Notable* is a university project I made by myself. It uses the *Constant-Q transform* in order to convert audio files (such as `.mp3`) to `.mid` files, a binary file format to encodes musical notes themselves, instead of samples. Although the conversion of a file in time-note (`.mid`) to time-sample (`.mp3`,`.wav`,etc.) representation is almost trivial, the inverse route is a pretty good challenge, explaining the reason of such a thing as *Notable*.
+
+
+### General idea
+
+The idea originated from the need to be able to move from an audio file in samples notation (such as `.mp3`,`.wav` or `.ogg` which is typically how music files or recordings are stored) to a time-note format instead (which is normally used in music editing contexts, or in older videogames to store game audio which was played real-time, due to their lightweightedness and small size on disk). Nowadays, the interest of such a file format is that it is entirely instrument-agnostic, meaning the notes themselves are stored in such a way that they are completely dissociated and independant from the instrument that will play them. This grants a lot of freedom and is of major interest from a music maker's point of view, explaining why they are still relevant and in major use in these kind of fields. 
+
+
+### How does it work?
+
+The Constant-Q transform is a modified version of the time-framed FFT that uses logarithmic frequency scaling, instead of the typical linear frequency scaling that is normally used in a time-framed, or windowed, FFT implementation.
+The idea behind using such a frequency transformation is that is grants us the ability to map frequencies directly to a representation in Hz, therefore allowing the identification of music notes played along the *time axis*.
+
+This is done by placing all the frequencies in octave buckets, which will then contain all the significant frequencies along with their importance coefficients (or amplitudes) at any given time. You can find and read the full project document \[fr\] at https://www.alexis.g.lebel.net/en/portfolio/notable for further explanation on the matter.
+
+Made in pure C++. MATLAB used for validation / testing / support. Works on Linux. Not tested, but with a few tweaks and with the good audio drivers installed, it should be working on Mac and Windows too.
+
+
+*Migration du gitlab de l'UdeS du projet de session Notable.*
+*Migrated from UdeS'gitlab session project.*
+
+## How to use
+
+1. In a linux shell, run this command from the repos in order to compile it:
+­```sh ./cmd_build_2.sh &> ../output.log```
+
+The build output is going to go in `output.log`.
+You might need to install or update some packages before the compilation works.
+
+2. Then, execute the program with `./notable` to run the output once the compilation completes.
+
+-------------------------
+# [Previous ReadMe]
 
 ## Getting started
 
@@ -33,8 +67,6 @@ git push -uf origin main
 - [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
 
 ## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
 
 - [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
 - [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
