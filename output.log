@@ -1,0 +1,198 @@
+for t in test/TestFFT test/TestMathUtilities test/TestResampler test/TestWindow test/TestCQKernel test/TestCQFrequency test/TestCQTime; do echo; echo "Running $t";  ./"$t" || exit 1; done && echo &&  "./test/test-inverse.sh" && echo 'Tests complete'
+
+Running test/TestFFT
+Running 21 test cases...
+
+[1;32;49m*** No errors detected
+[0;39;49m
+Running test/TestMathUtilities
+Running 11 test cases...
+
+[1;32;49m*** No errors detected
+[0;39;49m
+Running test/TestResampler
+Running 11 test cases...
+
+[1;32;49m*** No errors detected
+[0;39;49m
+Running test/TestWindow
+Running 9 test cases...
+
+[1;32;49m*** No errors detected
+[0;39;49m
+Running test/TestCQKernel
+Running 6 test cases...
+
+[1;32;49m*** No errors detected
+[0;39;49m
+Running test/TestCQFrequency
+Running 6 test cases...
+
+[1;32;49m*** No errors detected
+[0;39;49m
+Running test/TestCQTime
+Running 4 test cases...
+
+[1;32;49m*** No errors detected
+[0;39;49m
+max freq = 14700, min freq = 468.306, octaves = 5
+octave boundaries: 14700 7350 3675 1837.5 918.75 
+forward latency = 8048, inverse latency = 6720, total = 14768
+in: 441000, out: 441310
+max diff [excluding first and last second of audio] is 0.00274426 (-25.6158 dBFS) at sample index 340006
+elapsed time (not counting init): 1.04442 sec, frames/sec at input: 422244
+Forward-inverse process is satisfactory
+Tests complete
+main.cpp: In function ‘int processCQTSpectrFromFile(const string&, CQSpectrogram*)’:
+main.cpp:168:14: warning: unused variable ‘sndDiffFile’ [-Wunused-variable]
+  168 |     SNDFILE *sndDiffFile = 0;
+      |              ^~~~~~~~~~~
+main.cpp:199:15: warning: unused variable ‘latency’ [-Wunused-variable]
+  199 |     const int latency = cq.getLatency();
+      |               ^~~~~~~
+main.cpp:201:12: warning: unused variable ‘maxdiff’ [-Wunused-variable]
+  201 |     double maxdiff = 0.0;
+      |            ^~~~~~~
+main.cpp:202:9: warning: unused variable ‘maxdiffidx’ [-Wunused-variable]
+  202 |     int maxdiffidx = 0;
+      |         ^~~~~~~~~~
+main.cpp: In function ‘void processCQTFrame(const std::vector<double>&, int&, ConstantQ*)’:
+main.cpp:302:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::vector<std::complex<double> > >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  302 |     for (int i = 0; i < block.size(); ++i)
+      |                     ~~^~~~~~~~~~~~~~
+main.cpp:304:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::complex<double> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  304 |         for (int j = 0; j < block[0].size(); ++j)
+      |                         ~~^~~~~~~~~~~~~~~~~
+main.cpp: In function ‘double findMaxFreqs(const CQSpectrogram&, const std::vector<std::vector<std::vector<double> > >&, std::vector<double>&, std::vector<double>&, float)’:
+main.cpp:326:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::vector<std::vector<double> > >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  326 |     for (int i = 0; i < blocks.size(); i-=-1)
+      |                     ~~^~~~~~~~~~~~~~~
+main.cpp:328:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::vector<double> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  328 |         for (int t = 0; t < blocks[i].size(); ++t)
+      |                         ~~^~~~~~~~~~~~~~~~~~
+main.cpp:321:12: warning: variable ‘fprec’ set but not used [-Wunused-but-set-variable]
+  321 |     double fprec = -1.0;
+      |            ^~~~~
+main.cpp: In function ‘void findMaxFreqsPolyphonic(const CQSpectrogram&, const std::vector<std::vector<std::vector<double> > >&, std::vector<std::vector<double> >&, std::vector<std::vector<double> >&)’:
+main.cpp:383:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::vector<std::vector<double> > >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  383 |     for (int i = 0; i < blocks.size(); i-=-1)
+      |                     ~~^~~~~~~~~~~~~~~
+main.cpp:385:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::vector<double> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  385 |         for (int t = 0; t < blocks[i].size(); ++t)
+      |                         ~~^~~~~~~~~~~~~~~~~~
+main.cpp: In function ‘void outputToFile(const std::vector<double>&, const std::vector<double>&, float)’:
+main.cpp:454:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  454 |     for (int n = 0; n < maxs.size()-1; ++n)
+      |                     ~~^~~~~~~~~~~~~~~
+main.cpp: In function ‘void normalizeOutput(std::vector<double>&, std::vector<double>&, double)’:
+main.cpp:502:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  502 |     for (int i = 0; i < maxs.size(); ++i)
+      |                     ~~^~~~~~~~~~~~~
+MidiGenerator.cpp: In function ‘void MidiGenerator::outputToMIDI(const std::vector<double>&, const std::vector<double>&, float)’:
+MidiGenerator.cpp:158:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  158 |     for (int n = 0; n < maxs.size()-1; ++n)
+      |                     ~~^~~~~~~~~~~~~~~
+MidiGenerator.cpp:165:60: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  165 |             for (int i = 2; i < MIN_SAMPLES_COUNT && i + n < maxs.size()-1; ++i)
+      |                                                      ~~~~~~^~~~~~~~~~~~~~~
+MidiGenerator.cpp:189:24: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  189 |                   && n < maxs.size()-MIN_SAMPLES_COUNT)  // End of file not reached)
+      |                      ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:207:22: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  207 |                 || n >= maxs.size()-MIN_SAMPLES_COUNT                // End of file reached
+      |                    ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:206:44: warning: suggest parentheses around ‘&&’ within ‘||’ [-Wparentheses]
+  206 |                 (maxs[n] < MIN_AMP_TO_STOP && isNextSameFreq                   // Note no longer of high enough amplitude
+MidiGenerator.cpp:208:36: warning: suggest parentheses around ‘&&’ within ‘||’ [-Wparentheses]
+  208 |                 || !isNextSameFreq && maxs[n+1] > MIN_AMP_TO_PLAY);                         // New note (another frequency)
+      |                    ~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:218:24: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  218 |             else if (n >= maxs.size()-MIN_SAMPLES_COUNT)
+      |                      ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:301:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<MidiGenerator::MidiEvent>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  301 |     for (int n = 0; n < sequence.size(); ++n)
+      |                     ~~^~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:314:19: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<MidiGenerator::MidiEvent>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  314 |         if (n + 1 < sequence.size())
+      |             ~~~~~~^~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:96:16: warning: unused variable ‘UNITS_PER_BEAT’ [-Wunused-variable]
+   96 |     const uint UNITS_PER_BEAT = swap(10); // quarter note duration in ticks
+      |                ^~~~~~~~~~~~~~
+MidiGenerator.cpp:153:10: warning: unused variable ‘skipUpdate’ [-Wunused-variable]
+  153 |     bool skipUpdate = false;
+      |          ^~~~~~~~~~
+MidiGenerator.cpp: In function ‘void MidiGenerator::outputToMIDIPolyphonic(const std::vector<std::vector<double> >&, const std::vector<std::vector<double> >&)’:
+MidiGenerator.cpp:401:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  401 |     for (int m = 0; m < maxs[0].size()-1; ++m)
+      |                     ~~^~~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:404:52: warning: comparison of integer expressions of different signedness: ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  404 |         isNextSameFreq.push_back(fmaxs[1].size()-1 < m
+      |                                  ~~~~~~~~~~~~~~~~~~^~~
+MidiGenerator.cpp:410:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::vector<double> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  410 |     for (int n = 0; n < maxs.size()-1; ++n)
+      |                     ~~^~~~~~~~~~~~~~~
+MidiGenerator.cpp:420:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  420 |         for (int m = 0; m < maxs[n].size(); ++m)
+      |                         ~~^~~~~~~~~~~~~~~~
+MidiGenerator.cpp:423:58: warning: comparison of integer expressions of different signedness: ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  423 |             isNextSameFreq.push_back(fmaxs[n+1].size()-1 < m
+      |                                      ~~~~~~~~~~~~~~~~~~~~^~~
+MidiGenerator.cpp:428:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  428 |         for (int m = 0; m < maxs[n].size()-1; ++m)
+      |                         ~~^~~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:439:32: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<std::vector<double> >::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  439 |                         || n+1 == maxs.size()-1                        // End of file reached
+      |                            ~~~~^~~~~~~~~~~~~~~~
+MidiGenerator.cpp:441:47: warning: comparison of integer expressions of different signedness: ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  441 |                         || maxs[n+1].size()-1 < m);                    // Not enough note on the next
+      |                            ~~~~~~~~~~~~~~~~~~~^~~
+MidiGenerator.cpp:489:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  489 |     for (int m = 0; m < maxs[maxs.size()-1].size(); ++m)
+      |                     ~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:508:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<MidiGenerator::MidiEvent>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  508 |     for (int n = 0; n < sequence.size(); ++n)
+      |                     ~~^~~~~~~~~~~~~~~~~
+MidiGenerator.cpp:523:19: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<MidiGenerator::MidiEvent>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+  523 |         if (n + 1 < sequence.size() && sequence[n+1].status == 8)
+      |             ~~~~~~^~~~~~~~~~~~~~~~~
+In file included from ../Maximilian-master/src/maximilianRecording.cpp:34:
+../Maximilian-master/src/maximilianRecording.h: In constructor ‘maxiRecorder::maxiRecorder()’:
+../Maximilian-master/src/maximilianRecording.h:110:25: warning: ‘maxiRecorder::bufferSize’ will be initialized after [-Wreorder]
+  110 |     const int           bufferSize;
+      |                         ^~~~~~~~~~
+../Maximilian-master/src/maximilianRecording.h:109:25: warning:   ‘const int maxiRecorder::bufferQueueSize’ [-Wreorder]
+  109 |     const int           bufferQueueSize;
+      |                         ^~~~~~~~~~~~~~~
+../Maximilian-master/src/maximilianRecording.cpp:2261:1: warning:   when initialized here [-Wreorder]
+ 2261 | maxiRecorder::maxiRecorder() :
+      | ^~~~~~~~~~~~
+In file included from ../Maximilian-master/src/maximilianRecording.cpp:34:
+../Maximilian-master/src/maximilianRecording.h:112:25: warning: ‘maxiRecorder::recordedAmountFrames’ will be initialized after [-Wreorder]
+  112 |     long int            recordedAmountFrames;
+      |                         ^~~~~~~~~~~~~~~~~~~~
+../Maximilian-master/src/maximilianRecording.h:108:25: warning:   ‘bool maxiRecorder::threadRunning’ [-Wreorder]
+  108 |     bool                threadRunning;
+      |                         ^~~~~~~~~~~~~
+../Maximilian-master/src/maximilianRecording.cpp:2261:1: warning:   when initialized here [-Wreorder]
+ 2261 | maxiRecorder::maxiRecorder() :
+      | ^~~~~~~~~~~~
+../Maximilian-master/src/maximilianRecording.cpp: In member function ‘void maxiRecorder::freeResources()’:
+../Maximilian-master/src/maximilianRecording.cpp:2293:27: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::queue<double*>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+ 2293 |         for (int i = 0; i < savedBuffers.size(); ++i)
+      |                         ~~^~~~~~~~~~~~~~~~~~~~~
+../Maximilian-master/src/maximilianRecording.cpp: In member function ‘void* maxiRecorder::update(void*)’:
+../Maximilian-master/src/maximilianRecording.cpp:2346:33: warning: comparison of integer expressions of different signedness: ‘const int’ and ‘std::queue<double*>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+ 2346 |   while (_this->bufferQueueSize > _this->bufferQueue.size())
+      |          ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~
+../Maximilian-master/src/maximilianRecording.cpp: In member function ‘void maxiRecorder::saveToWav()’:
+../Maximilian-master/src/maximilianRecording.cpp:2449:23: warning: comparison of integer expressions of different signedness: ‘int’ and ‘std::vector<double>::size_type’ {aka ‘long unsigned int’} [-Wsign-compare]
+ 2449 |     for (int i = 0; i < pcmData.size(); ++i)
+      |                     ~~^~~~~~~~~~~~~~~~
+../Maximilian-master/src/libs/maxiFFT.cpp: In member function ‘float maxiFFT::spectralFlatness()’:
+../Maximilian-master/src/libs/maxiFFT.cpp:115:20: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  115 |  for(size_t i=0; i < bins; i++) {
+      |                  ~~^~~~~~
+../Maximilian-master/src/libs/maxiFFT.cpp: In member function ‘float maxiFFT::spectralCentroid()’:
+../Maximilian-master/src/libs/maxiFFT.cpp:127:20: warning: comparison of integer expressions of different signedness: ‘size_t’ {aka ‘long unsigned int’} and ‘int’ [-Wsign-compare]
+  127 |  for(size_t i=0; i < bins; i++) {
+      |                  ~~^~~~~~

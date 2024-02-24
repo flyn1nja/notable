@@ -1,0 +1,16 @@
+* --> Utiliser Min:  Max:  
+/home/alexis/Musique/guitar_test.wav
+
+* --> Utiliser Min: . Max: .
+/home/alexis/Musique/accoustique.wav
+
+* --> Utiliser Min: . Max: .
+/home/alexis/Musique/trompette.wav
+
+* --> Utiliser Min: 55 Max: 880
+/home/alexis/Musique/cello.wav
+
+
+
+* --> Utiliser Min: 220 Max: .
+/home/alexis/Musique/blue.wav
